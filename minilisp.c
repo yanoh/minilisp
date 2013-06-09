@@ -81,7 +81,7 @@ static Obj *True;
 static void *memory;
 static int mem_nused;
 static int gc_running = 0;
-#define DEBUG_GC 1
+#define DEBUG_GC 0
 
 void error(char *fmt, ...);
 Obj *read(Env *env, Obj **root, char **p);
@@ -651,6 +651,13 @@ Obj *prim_list(Env *env, Obj **root, Obj **list) {
     return eval_list(env, root, list);
 }
 
+Obj *prim_car(Env *env, Obj **root, Obj **list) {
+    Obj *args = eval_list(env, root, list);
+    if (args->car->type != TCELL)
+        error("car takes only a cell");
+    return args->car->car;
+}
+
 Obj *prim_setq(Env *env, Obj **root, Obj **list) {
     if (list_length(*list) != 2 ||
         (*list)->car->type != TSYMBOL)
@@ -839,6 +846,7 @@ void define_consts(Env *env, Obj **root) {
 void define_primitives(Env *env, Obj **root) {
     add_primitive(env, root, "quote", prim_quote);
     add_primitive(env, root, "list", prim_list);
+    add_primitive(env, root, "car", prim_car);
     add_primitive(env, root, "setq", prim_setq);
     add_primitive(env, root, "+", prim_plus);
     add_primitive(env, root, "negate", prim_negate);

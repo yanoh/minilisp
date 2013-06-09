@@ -3,4 +3,7 @@
 (defun sub (l r) (+ l (mul minus-1 r)))
 (defun fact (n) (if (= n 1) 1 (mul n (fact (+ n minus-1)))))
 (println (fact 5))
+(println 'gc-start)
+(gc)
+(println 'gc-end)
 (exit)

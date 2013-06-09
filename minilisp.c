@@ -81,7 +81,7 @@ static Obj *True;
 static void *memory;
 static int mem_nused;
 static int gc_running = 0;
-#define DEBUG_GC 0
+#define DEBUG_GC 1
 
 void error(char *fmt, ...);
 Obj *read(Env *env, Obj **root, char **p);

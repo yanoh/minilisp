@@ -75,7 +75,7 @@ static Obj *Dot;
 static Obj *Cparen;
 static Obj *True;
 
-#define MEMORY_SIZE 4096
+#define MEMORY_SIZE 8192
 #define ALIGN 16
 
 static void *memory;

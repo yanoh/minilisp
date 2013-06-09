@@ -688,8 +688,8 @@ Obj *prim_negate(Env *env, Obj **root, Obj **list) {
     ADD_ROOT(1);
     Obj **args = NEXT_VAR;
     *args = eval_list(env, root, list);
-    if ((*args)->car->type != TINT && (*args)->cdr != Nil)
-	error("#'negate takes only one number");
+    if ((*args)->car->type != TINT || (*args)->cdr != Nil)
+	error("negate takes only one number");
     return make_int(env, root, -(*args)->car->value);
 }
 

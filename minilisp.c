@@ -43,7 +43,7 @@ typedef struct Obj {
         };
         // String
         struct {
-            char strbody[1];
+            char *strbody;
         };
         // Cell
         struct {
@@ -52,7 +52,7 @@ typedef struct Obj {
         };
         // Symbol
         struct {
-            char name[1];
+            char *name;
         };
         // Primitive
         struct {
@@ -75,8 +75,8 @@ static Obj *Dot;
 static Obj *Cparen;
 static Obj *True;
 
-#define MEMORY_SIZE 8192
-#define ALIGN 16
+#define OBJ_SIZE 12 /* Fixed object size */
+#define MEMORY_SIZE OBJ_SIZE * 341 /* < 4KB */
 
 static void *memory;
 static int mem_nused;
@@ -101,34 +101,31 @@ void print(Obj *obj);
 
 #define NEXT_VAR &root[count_ADD_ROOT_++]
 
-Obj *alloc(Env *env, Obj **root, int type, size_t size) {
-    size += sizeof(void *);
-    if (size % ALIGN != 0)
-        size += ALIGN - (size % ALIGN);
-    if (MEMORY_SIZE < mem_nused + size)
+Obj *alloc(Env *env, Obj **root, int type) {
+    if (MEMORY_SIZE < mem_nused + OBJ_SIZE)
         gc(env, root);
-    if (MEMORY_SIZE < mem_nused + size)
+    if (MEMORY_SIZE < mem_nused + OBJ_SIZE)
         error("memory exhausted");
     Obj *obj = memory + mem_nused;
-    mem_nused += size;
+    mem_nused += OBJ_SIZE;
     obj->type = type;
     return obj;
 }
 
 Obj *make_int(Env *env, Obj **root, int value) {
-    Obj *r = alloc(env, root, TINT, sizeof(int));
+    Obj *r = alloc(env, root, TINT);
     r->value = value;
     return r;
 }
 
 Obj *make_string(Env *env, Obj **root, char *body) {
-    Obj *str = alloc(env, root, TSTRING, strlen(body) + 1);
-    strcpy(str->strbody, body);
+    Obj *str = alloc(env, root, TSTRING);
+    str->strbody = strdup(body);
     return str;
 }
 
 Obj *make_cell(Env *env, Obj **root, Obj **car, Obj **cdr) {
-    Obj *cell = alloc(env, root, TCELL, sizeof(Obj *) * 2);
+    Obj *cell = alloc(env, root, TCELL);
     cell->car = *car;
     cell->cdr = *cdr;
     return cell;
@@ -137,13 +134,13 @@ Obj *make_cell(Env *env, Obj **root, Obj **car, Obj **cdr) {
 Obj *find(char *name, Env *env);
 
 Obj *make_symbol(Env *env, Obj **root, char *name) {
-    Obj *sym = alloc(env, root, TSYMBOL, strlen(name) + 1);
-    strcpy(sym->name, name);
+    Obj *sym = alloc(env, root, TSYMBOL);
+    sym->name = strdup(name);
     return sym;
 }
 
 Obj *make_primitive(Env *env, Obj **root, Primitive *fn) {
-    Obj *r = alloc(env, root, TPRIMITIVE, sizeof(void *));
+    Obj *r = alloc(env, root, TPRIMITIVE);
     r->fn = fn;
     return r;
 }
@@ -151,7 +148,7 @@ Obj *make_primitive(Env *env, Obj **root, Primitive *fn) {
 Obj *make_function(Env *env, Obj **root, int type, Obj **params, Obj **body) {
     if (type != TFUNCTION && type != TMACRO)
         error("Bug: invalid argument for make_function");
-    Obj *r = alloc(env, root, type, sizeof(Obj *) * 2);
+    Obj *r = alloc(env, root, type);
     r->params = *params;
     r->body = *body;
     return r;
@@ -177,6 +174,7 @@ Obj *copy(Env *env, Obj **root, Obj **obj) {
         break;
     case TSTRING:
         r = make_string(env, root, (*obj)->strbody);
+        free((*obj)->strbody); (*obj)->strbody = NULL; /* Free orig body */
         break;
     case TCELL: {
         ADD_ROOT(2);
@@ -191,6 +189,7 @@ Obj *copy(Env *env, Obj **root, Obj **obj) {
     }
     case TSYMBOL:
         r = make_symbol(env, root, (*obj)->name);
+        free((*obj)->name); (*obj)->name = NULL; /* Free orig body */
         break;
     case TPRIMITIVE:
         r = make_primitive(env, root, (*obj)->fn);
@@ -689,7 +688,7 @@ Obj *prim_negate(Env *env, Obj **root, Obj **list) {
     Obj **args = NEXT_VAR;
     *args = eval_list(env, root, list);
     if ((*args)->car->type != TINT || (*args)->cdr != Nil)
-	error("negate takes only one number");
+        error("negate takes only one number");
     return make_int(env, root, -(*args)->car->value);
 }
 

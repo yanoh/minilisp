@@ -410,7 +410,7 @@ Obj *read(Env *env, Obj **root, char **p) {
             return read_quote(env, root, p);
         if (isdigit(c))
             return read_number(env, root, p, c - '0');
-        if (isalpha(c) || strchr("+=!@#$%^&*", c))
+        if (isalpha(c) || strchr("-+=!@#$%^&*", c))
             return read_symbol(env, root, p, c);
         error("don't know how to handle %c", c);
     }
@@ -684,6 +684,27 @@ Obj *prim_plus(Env *env, Obj **root, Obj **list) {
     return make_int(env, root, sum);
 }
 
+Obj *prim_minus(Env *env, Obj **root, Obj **list) {
+    ADD_ROOT(1);
+    Obj **args = NEXT_VAR;
+    *args = eval_list(env, root, list);
+    if ((*args)->car->type != TINT)
+	error("- takes only numbers");
+    int sum = (*args)->car->value;
+    *args = (*args)->cdr;
+    for (;;) {
+        if ((*args)->car->type != TINT)
+            error("- takes only numbers");
+        sum -= (*args)->car->value;
+        if ((*args)->cdr == Nil)
+            break;
+        if ((*args)->cdr->type != TCELL)
+            error("- does not take incomplete list");
+        *args = (*args)->cdr;
+    }
+    return make_int(env, root, sum);
+}
+
 Obj *handle_function(Env *env, Obj **root, Obj **list, int type) {
     if ((*list)->type != TCELL || (*list)->car->type != TCELL ||
         (*list)->cdr->type != TCELL) {
@@ -833,6 +854,7 @@ void define_primitives(Env *env, Obj **root) {
     add_primitive(env, root, "list", prim_list);
     add_primitive(env, root, "setq", prim_setq);
     add_primitive(env, root, "+", prim_plus);
+    add_primitive(env, root, "-", prim_minus);
     add_primitive(env, root, "define", prim_define);
     add_primitive(env, root, "defun", prim_defun);
     add_primitive(env, root, "defmacro", prim_defmacro);

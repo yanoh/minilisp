@@ -75,8 +75,10 @@ static Obj *Dot;
 static Obj *Cparen;
 static Obj *True;
 
-#define OBJ_SIZE 12 /* Fixed object size */
-#define MEMORY_SIZE OBJ_SIZE * 341 /* < 4KB */
+#define INT_SIZE sizeof(int)
+#define PTR_SIZE sizeof(void *)
+#define OBJECT_SIZE INT_SIZE + PTR_SIZE * 2
+#define MEMORY_SIZE 4096
 
 static void *memory;
 static int mem_nused;
@@ -102,12 +104,12 @@ void print(Obj *obj);
 #define NEXT_VAR &root[count_ADD_ROOT_++]
 
 Obj *alloc(Env *env, Obj **root, int type) {
-    if (MEMORY_SIZE < mem_nused + OBJ_SIZE)
+    if (MEMORY_SIZE < mem_nused + OBJECT_SIZE)
         gc(env, root);
-    if (MEMORY_SIZE < mem_nused + OBJ_SIZE)
+    if (MEMORY_SIZE < mem_nused + OBJECT_SIZE)
         error("memory exhausted");
     Obj *obj = memory + mem_nused;
-    mem_nused += OBJ_SIZE;
+    mem_nused += OBJECT_SIZE;
     obj->type = type;
     return obj;
 }

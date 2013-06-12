@@ -75,10 +75,12 @@ static Obj *Dot;
 static Obj *Cparen;
 static Obj *True;
 
+#define ALIGN 16
+#define MEMORY_SIZE 4096 * 2 /* 4KB heap caused memory exhausted error with factorial.lisp */
+
 #define INT_SIZE sizeof(int)
 #define PTR_SIZE sizeof(void *)
-#define OBJECT_SIZE INT_SIZE + PTR_SIZE * 2
-#define MEMORY_SIZE 4096
+#define OBJ_SIZE (((INT_SIZE + PTR_SIZE * 2) + ALIGN) & ~(ALIGN - 1))
 
 static void *memory;
 static int mem_nused;
@@ -104,12 +106,12 @@ void print(Obj *obj);
 #define NEXT_VAR &root[count_ADD_ROOT_++]
 
 Obj *alloc(Env *env, Obj **root, int type) {
-    if (MEMORY_SIZE < mem_nused + OBJECT_SIZE)
+    if (MEMORY_SIZE < mem_nused + OBJ_SIZE)
         gc(env, root);
-    if (MEMORY_SIZE < mem_nused + OBJECT_SIZE)
+    if (MEMORY_SIZE < mem_nused + OBJ_SIZE)
         error("memory exhausted");
     Obj *obj = memory + mem_nused;
-    mem_nused += OBJECT_SIZE;
+    mem_nused += OBJ_SIZE;
     obj->type = type;
     return obj;
 }
@@ -869,6 +871,8 @@ int main(int argc, char **argv) {
     ADD_ROOT(2);
     Obj **sexp = NEXT_VAR;
     Obj **expanded = NEXT_VAR;
+
+    printf("OBJ_SIZE: %d  MEMORY_SIZE: %d\n", OBJ_SIZE, MEMORY_SIZE);
 
     memory = mmap(NULL, MEMORY_SIZE, PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     mem_nused = 0;

@@ -76,7 +76,7 @@ static Obj *Cparen;
 static Obj *True;
 
 #define ALIGN 16
-#define MEMORY_SIZE 4096 * 1 /* 4KB heap caused memory exhausted error with factorial.lisp */
+#define MEMORY_SIZE 4096 * 2 /* 4KB heap caused memory exhausted error with factorial.lisp */
 
 #define INT_SIZE sizeof(int)
 #define PTR_SIZE sizeof(void *)

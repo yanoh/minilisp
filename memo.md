@@ -39,7 +39,7 @@ objects in C world from GC.
               | [1] &main          |
               |- - - - - - - - - - |
               | [2] (Obj *) 0      |<----[ Obj **sexp     ]
-              | [3] (obj *) 0      |<----[ Obj **expanded ]
+              | [3] (Obj *) 0      |<----[ Obj **expanded ]
               |- - - - - - - - - - |
               | [4] (Obj *) -1     |
               +--------------------+
@@ -53,7 +53,7 @@ objects in C world from GC.
         |     | [1] &main          |
         |     |- - - - - - - - - - |
         |     | [2] (Obj *) 0      |<----[ Obj **sexp     ]
-        |     | [3] (obj *) 0      |<----[ Obj **expanded ]
+        |     | [3] (Obj *) 0      |<----[ Obj **expanded ]
         |     |- - - - - - - - - - |
         |     | [4] (Obj *) -1     |
         |     +--------------------+
@@ -65,9 +65,9 @@ objects in C world from GC.
               | [1] &add_primitive |
               |- - - - - - - - - - |
               | [2] (Obj *) 0      |<----[ Obj **prim     ]
-              | [3] (obj *) 0      |--+
+              | [3] (Obj *) 0      |--+
               | [4] (Obj *) 0      |  | useless?
-              | [5] (obj *) 0      |--+
+              | [5] (Obj *) 0      |--+
               |- - - - - - - - - - |
               | [6] (Obj *) -1     |
               +--------------------+
@@ -81,7 +81,7 @@ objects in C world from GC.
         |     | [1] &main          |
         |     |- - - - - - - - - - |
         |     | [2] (Obj *) 0      |<----[ Obj **sexp     ]
-        |     | [3] (obj *) 0      |<----[ Obj **expanded ]
+        |     | [3] (Obj *) 0      |<----[ Obj **expanded ]
         |     |- - - - - - - - - - |
         |     | [4] (Obj *) -1     |
         |     +--------------------+
@@ -93,9 +93,9 @@ objects in C world from GC.
               | [1] &add_primitive |                           |
               |- - - - - - - - - - |                           |
               | [2] (Obj *) 0      |<----[ Obj **prim     ]    |
-              | [3] (obj *) 0      |--+                        |
+              | [3] (Obj *) 0      |--+                        |
               | [4] (Obj *) 0      |  | useless?               |
-              | [5] (obj *) 0      |--+                        |
+              | [5] (Obj *) 0      |--+                        |
               |- - - - - - - - - - |                           |
               | [6] (Obj *) -1     |                           |
               +--------------------+                           |
@@ -107,7 +107,7 @@ objects in C world from GC.
               | [1] &add_var       |
               |- - - - - - - - - - |
               | [2] (Obj *) 0      |<----[ Obj **sym      ]
-              | [3] (obj *) 0      |<----[ Obj **cell     ]
+              | [3] (Obj *) 0      |<----[ Obj **cell     ]
               | [4] (Obj *) 0      |<----[ Obj **tmp      ] useless?
               |- - - - - - - - - - |
               | [5] (Obj *) -1     |
@@ -122,7 +122,7 @@ objects in C world from GC.
         |     | [1] &main          |
         |     |- - - - - - - - - - |
         |     | [2] (Obj *) 0      |<----[ Obj **sexp     ]
-        |     | [3] (obj *) 0      |<----[ Obj **expanded ]
+        |     | [3] (Obj *) 0      |<----[ Obj **expanded ]
         |     |- - - - - - - - - - |
         |     | [4] (Obj *) -1     |
         |     +--------------------+
@@ -134,9 +134,9 @@ objects in C world from GC.
               | [1] &add_primitive |                           |
               |- - - - - - - - - - |                           |
               | [2] (Obj *) 0      |<----[ Obj **prim     ]    |
-              | [3] (obj *) 0      |--+                        |
+              | [3] (Obj *) 0      |--+                        |
               | [4] (Obj *) 0      |  | useless?               |
-              | [5] (obj *) 0      |--+                        |
+              | [5] (Obj *) 0      |--+                        |
               |- - - - - - - - - - |                           |
               | [6] (Obj *) -1     |                           |
               +--------------------+                           |
@@ -148,7 +148,7 @@ objects in C world from GC.
         |     | [1] &add_var       |
         |     |- - - - - - - - - - |
         |     | [2] (Obj *) 0      |<----[ Obj **sym      ]
-        |     | [3] (obj *) 0      |<----[ Obj **cell     ]
+        |     | [3] (Obj *) 0      |<----[ Obj **cell     ]
         |     | [4] (Obj *) 0      |<----[ Obj **tmp      ] useless?
         |     |- - - - - - - - - - |
         |     | [5] (Obj *) -1     |
@@ -161,7 +161,7 @@ objects in C world from GC.
               | [1] &add_var_init  |
               |- - - - - - - - - - |
               | [2] (Obj *) 0      |<----[ Obj **cell     ]
-              | [3] (obj *) 0      |<----[ Obj **tmp      ]
+              | [3] (Obj *) 0      |<----[ Obj **tmp      ]
               |- - - - - - - - - - |
               | [4] (Obj *) -1     |
               +--------------------+
@@ -175,7 +175,7 @@ objects in C world from GC.
         |     | [1] &main          |
         |     |- - - - - - - - - - |
         |     | [2] (Obj *) 0      |<----[ Obj **sexp     ]
-        |     | [3] (obj *) 0      |<----[ Obj **expanded ]
+        |     | [3] (Obj *) 0      |<----[ Obj **expanded ]
         |     |- - - - - - - - - - |
         |     | [4] (Obj *) -1     |
         |     +--------------------+
@@ -187,9 +187,9 @@ objects in C world from GC.
               | [1] &add_primitive |                           |
               |- - - - - - - - - - |                           |
               | [2] (Obj *) 0      |<----[ Obj **prim     ]    |
-              | [3] (obj *) 0      |--+                        |
+              | [3] (Obj *) 0      |--+                        |
               | [4] (Obj *) 0      |  | useless?               |
-              | [5] (obj *) 0      |--+                        |
+              | [5] (Obj *) 0      |--+                        |
               |- - - - - - - - - - |                           |
               | [6] (Obj *) -1     |                           |
               +--------------------+                           |
@@ -201,7 +201,7 @@ objects in C world from GC.
               | [1] &add_var       |
               |- - - - - - - - - - |
               | [2] (Obj *) 0      |<----[ Obj **sym      ]
-              | [3] (obj *) 0      |<----[ Obj **cell     ]
+              | [3] (Obj *) 0      |<----[ Obj **cell     ]
               | [4] (Obj *) 0      |<----[ Obj **tmp      ] useless?
               |- - - - - - - - - - |
               | [5] (Obj *) -1     |
@@ -216,7 +216,7 @@ objects in C world from GC.
         |     | [1] &main          |
         |     |- - - - - - - - - - |
         |     | [2] (Obj *) 0      |<----[ Obj **sexp     ]
-        |     | [3] (obj *) 0      |<----[ Obj **expanded ]
+        |     | [3] (Obj *) 0      |<----[ Obj **expanded ]
         |     |- - - - - - - - - - |
         |     | [4] (Obj *) -1     |
         |     +--------------------+
@@ -228,9 +228,9 @@ objects in C world from GC.
               | [1] &add_primitive |
               |- - - - - - - - - - |
               | [2] (Obj *) 0      |<----[ Obj **prim     ]
-              | [3] (obj *) 0      |--+
+              | [3] (Obj *) 0      |--+
               | [4] (Obj *) 0      |  | useless?
-              | [5] (obj *) 0      |--+
+              | [5] (Obj *) 0      |--+
               |- - - - - - - - - - |
               | [6] (Obj *) -1     |
               +--------------------+
@@ -244,7 +244,7 @@ objects in C world from GC.
               | [1] &main          |
               |- - - - - - - - - - |
               | [2] (Obj *) 0      |<----[ Obj **sexp     ]
-              | [3] (obj *) 0      |<----[ Obj **expanded ]
+              | [3] (Obj *) 0      |<----[ Obj **expanded ]
               |- - - - - - - - - - |
               | [4] (Obj *) -1     |
               +--------------------+

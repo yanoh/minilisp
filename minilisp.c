@@ -7,7 +7,6 @@
 #include <sys/mman.h>
 
 enum {
-    TMOVED = 7,
     TINT,
     TSTRING,
     TCELL,
@@ -35,8 +34,9 @@ typedef struct Obj *Primitive(Env *env, struct Obj **root, struct Obj **args);
 
 typedef struct Obj {
     int type;
+    int mark;
     union {
-        void *moved;
+        void *next;
         // Int
         struct {
             int value;
@@ -82,8 +82,8 @@ static Obj *True;
 #define PTR_SIZE sizeof(void *)
 #define OBJ_SIZE (((INT_SIZE + PTR_SIZE * 2) + ALIGN) & ~(ALIGN - 1))
 
-static void *memory;
-static int mem_nused;
+static Obj *memory;
+static Obj *free_list;
 static int gc_running = 0;
 #define DEBUG_GC 0
 
@@ -106,12 +106,14 @@ void print(Obj *obj);
 #define NEXT_VAR &root[count_ADD_ROOT_++]
 
 Obj *alloc(Env *env, Obj **root, int type) {
-    if (MEMORY_SIZE < mem_nused + OBJ_SIZE)
-        gc(env, root);
-    if (MEMORY_SIZE < mem_nused + OBJ_SIZE)
-        error("memory exhausted");
-    Obj *obj = memory + mem_nused;
-    mem_nused += OBJ_SIZE;
+    Obj *obj;
+
+    if (!free_list) gc(env, root);
+    if (!free_list) error("memory exhausted");
+
+    obj = free_list;
+    free_list = obj.next;
+
     obj->type = type;
     return obj;
 }
@@ -165,6 +167,7 @@ Obj *make_spe(int spetype) {
     return r;
 }
 
+#if 0
 Obj *copy(Env *env, Obj **root, Obj **obj) {
     Obj *r;
     size_t loc = (void *)(*obj) - memory;
@@ -219,6 +222,7 @@ Obj *copy(Env *env, Obj **root, Obj **obj) {
     (*obj)->moved = r;
     return r;
 }
+#endif
 
 void print_cframe(Obj **root) {
     Obj **cframe = root;
@@ -239,12 +243,34 @@ void print_cframe(Obj **root) {
     }
 }
 
+void mark_var(Object *var)
+{
+    var->mark = 1;
+}
+
+void mark(Env *env, Object **root)
+{
+    for (Env *frame = env; frame; frame = frame->next) {
+        Obj *vars = frame->vars;
+        for (Obj *vars = frame->vars; vars != Nil; vars = vars->cdr) {
+            vars->mark = 1;
+            mark_var(vars->car);
+        }
+    }
+}
+
 void gc(Env *env, Obj **root) {
     if (gc_running)
         error("Bug: GC is already running");
     gc_running = 1;
+
+    mark(env, root);
+    sweep(env, root);
+
     if (DEBUG_GC)
         fprintf(stderr, "Running GC (%d words used)... ", mem_nused);
+
+
     void *old_memory = memory;
     memory = mmap(NULL, MEMORY_SIZE, PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
     mem_nused = 0;

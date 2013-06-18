@@ -187,6 +187,9 @@ void print_cframe(Obj **root) {
 void mark_obj(Obj *obj)
 {
     if (obj && !obj->mark) {
+        if (DEBUG_GC)
+            printf("marking %p (type: %d)\n", obj, obj->type);
+
         obj->mark = 1;
         switch (obj->type) {
         case TCELL:
@@ -202,34 +205,47 @@ void mark_obj(Obj *obj)
     }
 }
 
-void mark(Env *env, Obj **root)
+void mark_from_env(Env *env, Obj **root)
 {
-    /* mark from env */
     Env *frame = env;
     for (; frame; frame = frame->next) {
         mark_obj(frame->vars);
     }
+}
 
-    /* mark from root */
+void mark_from_root(Env *env, Obj **root)
+{
     Obj **cframe = root;
     for (; cframe; cframe = (Obj **) cframe[0]) {
-	int i = 2;
+        int i = 2;
         for (; cframe[i] != (Obj *) -1; i++) {
             mark_obj(cframe[i]);
         }
     }
 }
 
+void mark(Env *env, Obj **root)
+{
+    int i = 0;
+    for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
+        (memory + i)->mark = 0;
+    }
+    mark_from_env(env, root);
+    mark_from_root(env, root);
+}
+
 void sweep_obj(Obj *obj)
 {
-    obj->mark = 0;
+    if (DEBUG_GC)
+        printf("sweeping %p (type: %d)\n", obj, obj->type);
+
     switch (obj->type) {
     case TSTRING:
-	free(obj->strbody);
-	break;
+        free(obj->strbody);
+        break;
     case TSYMBOL:
-	free(obj->name);
-	break;
+        free(obj->name);
+        break;
     }
     obj->next = free_list;
     free_list = obj;
@@ -391,7 +407,6 @@ Obj *read(Env *env, Obj **root, char **p) {
 }
 
 void print(Obj *obj) {
-    // if (DEBUG_GC) printf("%p=", obj);
     switch (obj->type) {
     case TINT:
         printf("%d", obj->value);

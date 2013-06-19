@@ -82,7 +82,7 @@ static Obj *Cparen;
 static Obj *True;
 
 #define ALIGN 16
-#define MEMORY_SIZE 4096 /* 4KB heap caused memory exhausted error with factorial.lisp */
+#define MEMORY_SIZE 1096 /* 4KB heap caused memory exhausted error with factorial.lisp */
 
 #define INT_SIZE sizeof(int)
 #define PTR_SIZE sizeof(void *)
@@ -239,10 +239,10 @@ void mark_from_root(Env *env, Obj **root)
 
 void mark(Env *env, Obj **root)
 {
-    int i = 0;
     int h = 0;
     Obj** heaps = memory.heaps;
     for (; h < memory.len; h++) {
+    int i = 0;
       Obj* heap = heaps[h];
       for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
           (heap + i)->mark = 0;
@@ -267,6 +267,8 @@ void sweep_obj(Obj *obj)
         free(obj->name);
         break;
     }
+    obj->type = 0,
+    obj->mark = 0,
     obj->next = free_list;
     free_list = obj;
 }
@@ -274,11 +276,11 @@ void sweep_obj(Obj *obj)
 void sweep(Env *env, Obj **root)
 {
     free_list = NULL;
-    int i = 0;
     int h = 0;
     Obj** heaps = memory.heaps;
     for (; h < memory.len; h++) {
       Obj* heap = heaps[h];
+    int i = 0;
       for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
           Obj *obj = heap + i;
           if (!obj->mark) {
@@ -381,7 +383,7 @@ Obj *read_symbol(Env *env, Obj **root, char **p, char c) {
     buf[0] = c;
     for (;;) {
         char c = **p;
-        if (isalnum(c) /* || c == '-' */) {
+        if (isalnum(c) || c == '-') {
             if (SYMBOL_MAX_LEN + 1 < len)
                 error("symbol name too long");
             (*p)++;
@@ -425,7 +427,7 @@ Obj *read(Env *env, Obj **root, char **p) {
             return read_quote(env, root, p);
         if (isdigit(c))
             return read_number(env, root, p, c - '0');
-        if (isalpha(c) || strchr("+-=!@#$%^&*", c))
+        if (isalpha(c) || strchr("+=!@#$%^&*", c))
             return read_symbol(env, root, p, c);
         error("don't know how to handle %c", c);
     }
@@ -879,12 +881,14 @@ Obj *alloc_heap(size_t heap_size, size_t obj_size)
     if (memory.len >= memory.capa) {
       return NULL;
     }
-    Obj *heap = mmap(NULL, heap_size, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    memory.heaps[memory.len++] = heap;
+    Obj *heap = malloc(heap_size); //mmap(NULL, heap_size, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    memory.heaps[memory.len] = heap;
+    memory.len += 1;
     int i = 0;
     for (; i < heap_size / obj_size - 1; i++) {
         heap[i].next = &heap[i + 1];
     }
+    heap[heap_size/obj_size - 1].next = NULL;
     return heap;
 }
 

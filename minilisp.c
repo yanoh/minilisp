@@ -7,7 +7,6 @@
 #include <sys/mman.h>
 
 enum {
-    TMOVED = 7,
     TINT,
     TSTRING,
     TCELL,
@@ -35,15 +34,16 @@ typedef struct Obj *Primitive(Env *env, struct Obj **root, struct Obj **args);
 
 typedef struct Obj {
     int type;
+    int mark;
     union {
-        void *moved;
+        struct Obj *next;
         // Int
         struct {
             int value;
         };
         // String
         struct {
-            char strbody[1];
+            char *strbody;
         };
         // Cell
         struct {
@@ -52,7 +52,7 @@ typedef struct Obj {
         };
         // Symbol
         struct {
-            char name[1];
+            char *name;
         };
         // Primitive
         struct {
@@ -75,13 +75,17 @@ static Obj *Dot;
 static Obj *Cparen;
 static Obj *True;
 
-#define MEMORY_SIZE 4096
 #define ALIGN 16
+#define MEMORY_SIZE 4096 * 2 /* 4KB heap caused memory exhausted error with factorial.lisp */
 
-static void *memory;
-static int mem_nused;
+#define INT_SIZE sizeof(int)
+#define PTR_SIZE sizeof(void *)
+#define OBJ_SIZE (((INT_SIZE + PTR_SIZE * 2) + ALIGN) & ~(ALIGN - 1))
+
+static Obj *memory;
+static Obj *free_list;
 static int gc_running = 0;
-#define DEBUG_GC 0
+#define DEBUG_GC 1
 
 void error(char *fmt, ...);
 Obj *read(Env *env, Obj **root, char **p);
@@ -101,34 +105,31 @@ void print(Obj *obj);
 
 #define NEXT_VAR &root[count_ADD_ROOT_++]
 
-Obj *alloc(Env *env, Obj **root, int type, size_t size) {
-    size += sizeof(void *);
-    if (size % ALIGN != 0)
-        size += ALIGN - (size % ALIGN);
-    if (MEMORY_SIZE < mem_nused + size)
-        gc(env, root);
-    if (MEMORY_SIZE < mem_nused + size)
-        error("memory exhausted");
-    Obj *obj = memory + mem_nused;
-    mem_nused += size;
+Obj *alloc(Env *env, Obj **root, int type) {
+    if (!free_list) gc(env, root);
+    if (!free_list) error("memory exhausted");
+
+    Obj *obj = free_list;
+    free_list = obj->next;
+
     obj->type = type;
     return obj;
 }
 
 Obj *make_int(Env *env, Obj **root, int value) {
-    Obj *r = alloc(env, root, TINT, sizeof(int));
+    Obj *r = alloc(env, root, TINT);
     r->value = value;
     return r;
 }
 
 Obj *make_string(Env *env, Obj **root, char *body) {
-    Obj *str = alloc(env, root, TSTRING, strlen(body) + 1);
-    strcpy(str->strbody, body);
+    Obj *str = alloc(env, root, TSTRING);
+    str->strbody = strdup(body);
     return str;
 }
 
 Obj *make_cell(Env *env, Obj **root, Obj **car, Obj **cdr) {
-    Obj *cell = alloc(env, root, TCELL, sizeof(Obj *) * 2);
+    Obj *cell = alloc(env, root, TCELL);
     cell->car = *car;
     cell->cdr = *cdr;
     return cell;
@@ -137,13 +138,13 @@ Obj *make_cell(Env *env, Obj **root, Obj **car, Obj **cdr) {
 Obj *find(char *name, Env *env);
 
 Obj *make_symbol(Env *env, Obj **root, char *name) {
-    Obj *sym = alloc(env, root, TSYMBOL, strlen(name) + 1);
-    strcpy(sym->name, name);
+    Obj *sym = alloc(env, root, TSYMBOL);
+    sym->name = strdup(name);
     return sym;
 }
 
 Obj *make_primitive(Env *env, Obj **root, Primitive *fn) {
-    Obj *r = alloc(env, root, TPRIMITIVE, sizeof(void *));
+    Obj *r = alloc(env, root, TPRIMITIVE);
     r->fn = fn;
     return r;
 }
@@ -151,7 +152,7 @@ Obj *make_primitive(Env *env, Obj **root, Primitive *fn) {
 Obj *make_function(Env *env, Obj **root, int type, Obj **params, Obj **body) {
     if (type != TFUNCTION && type != TMACRO)
         error("Bug: invalid argument for make_function");
-    Obj *r = alloc(env, root, type, sizeof(Obj *) * 2);
+    Obj *r = alloc(env, root, type);
     r->params = *params;
     r->body = *body;
     return r;
@@ -161,59 +162,6 @@ Obj *make_spe(int spetype) {
     Obj *r = malloc(sizeof(int) * 2);
     r->type = TSPE;
     r->spetype = spetype;
-    return r;
-}
-
-Obj *copy(Env *env, Obj **root, Obj **obj) {
-    Obj *r;
-    size_t loc = (void *)(*obj) - memory;
-    if (0 <= loc && loc < MEMORY_SIZE)
-        return *obj;
-    switch ((*obj)->type) {
-    case TMOVED:
-        return (*obj)->moved;
-    case TINT:
-        r = make_int(env, root, (*obj)->value);
-        break;
-    case TSTRING:
-        r = make_string(env, root, (*obj)->strbody);
-        break;
-    case TCELL: {
-        ADD_ROOT(2);
-        Obj **car = NEXT_VAR;
-        Obj **cdr = NEXT_VAR;
-        *car = (*obj)->car;
-        *cdr = (*obj)->cdr;
-        *car = copy(env, root, car);
-        *cdr = copy(env, root, cdr);
-        r = make_cell(env, root, car, cdr);
-        break;
-    }
-    case TSYMBOL:
-        r = make_symbol(env, root, (*obj)->name);
-        break;
-    case TPRIMITIVE:
-        r = make_primitive(env, root, (*obj)->fn);
-        break;
-    case TFUNCTION:
-    case TMACRO: {
-        ADD_ROOT(2);
-        Obj **params = NEXT_VAR;
-        Obj **body = NEXT_VAR;
-        *params = (*obj)->params;
-        *body = (*obj)->body;
-        *params = copy(env, root, params);
-        *body = copy(env, root, body);
-        r = make_function(env, root, (*obj)->type, params, body);
-        break;
-    }
-    case TSPE:
-        return *obj;
-    default:
-        error("Bug: copy: unknown type %d", (*obj)->type);
-    }
-    (*obj)->type = TMOVED;
-    (*obj)->moved = r;
     return r;
 }
 
@@ -236,52 +184,94 @@ void print_cframe(Obj **root) {
     }
 }
 
+void mark_obj(Obj *obj)
+{
+    if (obj && !obj->mark) {
+        if (DEBUG_GC)
+            printf("marking %p (type: %d)\n", obj, obj->type);
+
+        obj->mark = 1;
+        switch (obj->type) {
+        case TCELL:
+            mark_obj(obj->car);
+            mark_obj(obj->cdr);
+            break;
+        case TFUNCTION:
+        case TMACRO:
+            mark_obj(obj->params);
+            mark_obj(obj->body);
+            break;
+        }
+    }
+}
+
+void mark_from_env(Env *env, Obj **root)
+{
+    Env *frame = env;
+    for (; frame; frame = frame->next) {
+        mark_obj(frame->vars);
+    }
+}
+
+void mark_from_root(Env *env, Obj **root)
+{
+    Obj **cframe = root;
+    for (; cframe; cframe = (Obj **) cframe[0]) {
+        int i = 2;
+        for (; cframe[i] != (Obj *) -1; i++) {
+            mark_obj(cframe[i]);
+        }
+    }
+}
+
+void mark(Env *env, Obj **root)
+{
+    int i = 0;
+    for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
+        (memory + i)->mark = 0;
+    }
+    mark_from_env(env, root);
+    mark_from_root(env, root);
+}
+
+void sweep_obj(Obj *obj)
+{
+    if (DEBUG_GC)
+        printf("sweeping %p (type: %d)\n", obj, obj->type);
+
+    switch (obj->type) {
+    case TSTRING:
+        free(obj->strbody);
+        break;
+    case TSYMBOL:
+        free(obj->name);
+        break;
+    }
+    obj->next = free_list;
+    free_list = obj;
+}
+
+void sweep(Env *env, Obj **root)
+{
+    free_list = NULL;
+    int i = 0;
+    for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
+        Obj *obj = memory + i;
+        if (!obj->mark) {
+            sweep_obj(obj);
+        }
+    }
+}
+
 void gc(Env *env, Obj **root) {
+    printf("gc start\n");
     if (gc_running)
         error("Bug: GC is already running");
     gc_running = 1;
-    if (DEBUG_GC)
-        fprintf(stderr, "Running GC (%d words used)... ", mem_nused);
-    void *old_memory = memory;
-    memory = mmap(NULL, MEMORY_SIZE, PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    mem_nused = 0;
-    if (DEBUG_GC)
-        printf("\nMEMORY: %p + %x\n", memory, MEMORY_SIZE);
-
-    Env *frame;
-    for (frame = env; frame; frame = frame->next)
-        frame->vars = copy(env, root, &frame->vars);
-
-    if (DEBUG_GC) print_cframe(root);
-
-    Obj **cframe = root;
-    for (;;) {
-        if (!*cframe) break;
-        Obj **ptr = cframe + 2;
-        for (; *ptr != (Obj *)-1; ptr++) {
-            if (*ptr) {
-                if (DEBUG_GC) {
-                    printf("Copying %p ", *ptr);
-                    print(*ptr);
-                }
-                *ptr = copy(env, root, ptr);
-                if (DEBUG_GC) {
-                    printf(" -> %p ", *ptr);
-                    print(*ptr);
-                    printf("\n");
-                }
-            } else if (DEBUG_GC) {
-                printf("Skip\n");
-            }
-        }
-        cframe = *(Obj ***)cframe;
-    }
-    munmap(old_memory, MEMORY_SIZE);
-    if (DEBUG_GC) {
-        fprintf(stderr, "done\n");
-        fprintf(stderr, "%d bytes copied.\n", mem_nused);
-    }
+    mark(env, root);
+    sweep(env, root);
     gc_running = 0;
+    printf("gc end\n");
 }
 
 void error(char *fmt, ...) {
@@ -417,11 +407,7 @@ Obj *read(Env *env, Obj **root, char **p) {
 }
 
 void print(Obj *obj) {
-    // if (DEBUG_GC) printf("%p=", obj);
     switch (obj->type) {
-    case TMOVED:
-        printf("<moved>");
-        return;
     case TINT:
         printf("%d", obj->value);
         return;
@@ -652,6 +638,13 @@ Obj *prim_list(Env *env, Obj **root, Obj **list) {
     return eval_list(env, root, list);
 }
 
+Obj *prim_car(Env *env, Obj **root, Obj **list) {
+    Obj *args = eval_list(env, root, list);
+    if (args->car->type != TCELL)
+        error("car takes only a cell");
+    return args->car->car;
+}
+
 Obj *prim_setq(Env *env, Obj **root, Obj **list) {
     if (list_length(*list) != 2 ||
         (*list)->car->type != TSYMBOL)
@@ -682,6 +675,15 @@ Obj *prim_plus(Env *env, Obj **root, Obj **list) {
         *args = (*args)->cdr;
     }
     return make_int(env, root, sum);
+}
+
+Obj *prim_negate(Env *env, Obj **root, Obj **list) {
+    ADD_ROOT(1);
+    Obj **args = NEXT_VAR;
+    *args = eval_list(env, root, list);
+    if ((*args)->car->type != TINT || (*args)->cdr != Nil)
+        error("negate takes only one number");
+    return make_int(env, root, -(*args)->car->value);
 }
 
 Obj *handle_function(Env *env, Obj **root, Obj **list, int type) {
@@ -831,8 +833,10 @@ void define_consts(Env *env, Obj **root) {
 void define_primitives(Env *env, Obj **root) {
     add_primitive(env, root, "quote", prim_quote);
     add_primitive(env, root, "list", prim_list);
+    add_primitive(env, root, "car", prim_car);
     add_primitive(env, root, "setq", prim_setq);
     add_primitive(env, root, "+", prim_plus);
+    add_primitive(env, root, "negate", prim_negate);
     add_primitive(env, root, "define", prim_define);
     add_primitive(env, root, "defun", prim_defun);
     add_primitive(env, root, "defmacro", prim_defmacro);
@@ -845,14 +849,26 @@ void define_primitives(Env *env, Obj **root) {
     add_primitive(env, root, "exit", prim_exit);
 }
 
+Obj *alloc_heap(size_t heap_size, size_t obj_size)
+{
+    Obj *heap = mmap(NULL, heap_size, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    int i = 0;
+    for (; i < heap_size / obj_size - 1; i++) {
+        heap[i].next = &heap[i + 1];
+    }
+    return heap;
+}
+
 int main(int argc, char **argv) {
     Obj **root = NULL;
     ADD_ROOT(2);
     Obj **sexp = NEXT_VAR;
     Obj **expanded = NEXT_VAR;
 
-    memory = mmap(NULL, MEMORY_SIZE, PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
-    mem_nused = 0;
+    printf("OBJ_SIZE: %d  MEMORY_SIZE: %d\n", OBJ_SIZE, MEMORY_SIZE);
+
+    memory = free_list = alloc_heap(MEMORY_SIZE, OBJ_SIZE);
+
     if (DEBUG_GC)
         printf("MEMORY: %p + %x\n", memory, MEMORY_SIZE);
 
@@ -867,8 +883,6 @@ int main(int argc, char **argv) {
 
     define_consts(env, root);
     define_primitives(env, root);
-
-    mem_nused = MEMORY_SIZE - sizeof(void *) * 32;
 
     char buf[BUFSIZE];
     for (;;) {

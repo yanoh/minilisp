@@ -381,7 +381,7 @@ Obj *read_symbol(Env *env, Obj **root, char **p, char c) {
     buf[0] = c;
     for (;;) {
         char c = **p;
-        if (isalnum(c) || c == '-') {
+        if (isalnum(c) /* || c == '-' */) {
             if (SYMBOL_MAX_LEN + 1 < len)
                 error("symbol name too long");
             (*p)++;
@@ -425,7 +425,7 @@ Obj *read(Env *env, Obj **root, char **p) {
             return read_quote(env, root, p);
         if (isdigit(c))
             return read_number(env, root, p, c - '0');
-        if (isalpha(c) || strchr("+=!@#$%^&*", c))
+        if (isalpha(c) || strchr("+-=!@#$%^&*", c))
             return read_symbol(env, root, p, c);
         error("don't know how to handle %c", c);
     }

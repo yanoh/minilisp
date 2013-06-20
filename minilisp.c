@@ -70,19 +70,26 @@ typedef struct Obj {
     };
 } Obj;
 
+typedef struct ObjectSpace {
+  int len;
+  int capa;
+  Obj** heaps;
+} ObjectSpace;
+
 static Obj *Nil;
 static Obj *Dot;
 static Obj *Cparen;
 static Obj *True;
 
 #define ALIGN 16
-#define MEMORY_SIZE 4096 * 2 /* 4KB heap caused memory exhausted error with factorial.lisp */
+#define MEMORY_SIZE 1096 /* 4KB heap caused memory exhausted error with factorial.lisp */
 
 #define INT_SIZE sizeof(int)
 #define PTR_SIZE sizeof(void *)
 #define OBJ_SIZE (((INT_SIZE + PTR_SIZE * 2) + ALIGN) & ~(ALIGN - 1))
+#define MAX_HEAPS_SIZE 1024
 
-static Obj *memory;
+static ObjectSpace memory;
 static Obj *free_list;
 static int gc_running = 0;
 #define DEBUG_GC 1
@@ -93,6 +100,7 @@ Obj *read_one(Env *env, Obj **root, char **p);
 Obj *make_cell(Env *env, Obj **root, Obj **car, Obj **cdr);
 void gc(Env *env, Obj **root);
 void print(Obj *obj);
+Obj *alloc_heap(size_t heap_size, size_t obj_size);
 
 #define ADD_ROOT(size)                                          \
     Obj * root_ADD_ROOT_[size+3];                               \
@@ -107,7 +115,10 @@ void print(Obj *obj);
 
 Obj *alloc(Env *env, Obj **root, int type) {
     if (!free_list) gc(env, root);
-    if (!free_list) error("memory exhausted");
+    if (!free_list) {
+      free_list = alloc_heap(MEMORY_SIZE, OBJ_SIZE);
+      if (!free_list) error("memory exhausted");
+    }
 
     Obj *obj = free_list;
     free_list = obj->next;
@@ -187,8 +198,10 @@ void print_cframe(Obj **root) {
 void mark_obj(Obj *obj)
 {
     if (obj && !obj->mark) {
+    /*
         if (DEBUG_GC)
             printf("marking %p (type: %d)\n", obj, obj->type);
+            */
 
         obj->mark = 1;
         switch (obj->type) {
@@ -226,9 +239,14 @@ void mark_from_root(Env *env, Obj **root)
 
 void mark(Env *env, Obj **root)
 {
+    int h = 0;
+    Obj** heaps = memory.heaps;
+    for (; h < memory.len; h++) {
     int i = 0;
-    for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
-        (memory + i)->mark = 0;
+      Obj* heap = heaps[h];
+      for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
+          (heap + i)->mark = 0;
+      }
     }
     mark_from_env(env, root);
     mark_from_root(env, root);
@@ -236,8 +254,10 @@ void mark(Env *env, Obj **root)
 
 void sweep_obj(Obj *obj)
 {
+/*
     if (DEBUG_GC)
         printf("sweeping %p (type: %d)\n", obj, obj->type);
+        */
 
     switch (obj->type) {
     case TSTRING:
@@ -247,6 +267,8 @@ void sweep_obj(Obj *obj)
         free(obj->name);
         break;
     }
+    obj->type = 0,
+    obj->mark = 0,
     obj->next = free_list;
     free_list = obj;
 }
@@ -254,12 +276,17 @@ void sweep_obj(Obj *obj)
 void sweep(Env *env, Obj **root)
 {
     free_list = NULL;
+    int h = 0;
+    Obj** heaps = memory.heaps;
+    for (; h < memory.len; h++) {
+      Obj* heap = heaps[h];
     int i = 0;
-    for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
-        Obj *obj = memory + i;
-        if (!obj->mark) {
-            sweep_obj(obj);
-        }
+      for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
+          Obj *obj = heap + i;
+          if (!obj->mark) {
+              sweep_obj(obj);
+          }
+      }
     }
 }
 
@@ -851,11 +878,17 @@ void define_primitives(Env *env, Obj **root) {
 
 Obj *alloc_heap(size_t heap_size, size_t obj_size)
 {
-    Obj *heap = mmap(NULL, heap_size, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (memory.len >= memory.capa) {
+      return NULL;
+    }
+    Obj *heap = malloc(heap_size); //mmap(NULL, heap_size, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    memory.heaps[memory.len] = heap;
+    memory.len += 1;
     int i = 0;
     for (; i < heap_size / obj_size - 1; i++) {
         heap[i].next = &heap[i + 1];
     }
+    heap[heap_size/obj_size - 1].next = NULL;
     return heap;
 }
 
@@ -867,7 +900,11 @@ int main(int argc, char **argv) {
 
     printf("OBJ_SIZE: %d  MEMORY_SIZE: %d\n", OBJ_SIZE, MEMORY_SIZE);
 
-    memory = free_list = alloc_heap(MEMORY_SIZE, OBJ_SIZE);
+    memory.len = 0;
+    memory.capa = MAX_HEAPS_SIZE;
+    memory.heaps = malloc(sizeof(Obj*) * MAX_HEAPS_SIZE);
+    
+    free_list = alloc_heap(MEMORY_SIZE, OBJ_SIZE);
 
     if (DEBUG_GC)
         printf("MEMORY: %p + %x\n", memory, MEMORY_SIZE);

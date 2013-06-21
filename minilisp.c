@@ -117,6 +117,7 @@ Obj *alloc_heap(size_t heap_size, size_t obj_size);
   Obj CELL(X);              \
   CELL(X).type=TCELL;       \
   CELL(X).mark=0;           \
+  CELL(X).car=NULL;           \
   Obj** X = &(CELL(X).car); \
   CELL(X).cdr = root;       \
   root = &(CELL(X))

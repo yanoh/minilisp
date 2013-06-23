@@ -7,6 +7,7 @@
 #include <sys/mman.h>
 
 enum {
+    TFREE,
     TINT,
     TSTRING,
     TCELL,
@@ -32,9 +33,11 @@ typedef struct Env {
 
 typedef struct Obj *Primitive(Env *env, struct Obj **root, struct Obj **args);
 
+struct ObjectHeap;
+
 typedef struct Obj {
     int type;
-    int mark;
+    struct ObjectHeap *heap;
     union {
         struct Obj *next;
         // Int
@@ -70,19 +73,28 @@ typedef struct Obj {
     };
 } Obj;
 
+typedef unsigned char Octet;
+
+typedef struct ObjectHeap {
+    Octet *marks;
+    Obj *ptr;
+} ObjectHeap;
+
+typedef struct ObjectSpace {
+  int len;
+  int capa;
+  ObjectHeap **heaps;
+} ObjectSpace;
+
 static Obj *Nil;
 static Obj *Dot;
 static Obj *Cparen;
 static Obj *True;
 
-#define ALIGN 16
-#define MEMORY_SIZE 4096 * 2 /* 4KB heap caused memory exhausted error with factorial.lisp */
+#define MEMORY_SIZE 1024
+#define MAX_HEAPS_SIZE 1024
 
-#define INT_SIZE sizeof(int)
-#define PTR_SIZE sizeof(void *)
-#define OBJ_SIZE (((INT_SIZE + PTR_SIZE * 2) + ALIGN) & ~(ALIGN - 1))
-
-static Obj *memory;
+static ObjectSpace memory;
 static Obj *free_list;
 static int gc_running = 0;
 #define DEBUG_GC 1
@@ -93,6 +105,7 @@ Obj *read_one(Env *env, Obj **root, char **p);
 Obj *make_cell(Env *env, Obj **root, Obj **car, Obj **cdr);
 void gc(Env *env, Obj **root);
 void print(Obj *obj);
+Obj *alloc_heap(size_t size);
 
 #define ADD_ROOT(size)                                          \
     Obj * root_ADD_ROOT_[size+3];                               \
@@ -107,7 +120,10 @@ void print(Obj *obj);
 
 Obj *alloc(Env *env, Obj **root, int type) {
     if (!free_list) gc(env, root);
-    if (!free_list) error("memory exhausted");
+    if (!free_list) {
+      free_list = alloc_heap(MEMORY_SIZE);
+      if (!free_list) error("memory exhausted");
+    }
 
     Obj *obj = free_list;
     free_list = obj->next;
@@ -159,7 +175,7 @@ Obj *make_function(Env *env, Obj **root, int type, Obj **params, Obj **body) {
 }
 
 Obj *make_spe(int spetype) {
-    Obj *r = malloc(sizeof(int) * 2);
+    Obj *r = malloc(sizeof(Obj));
     r->type = TSPE;
     r->spetype = spetype;
     return r;
@@ -184,13 +200,21 @@ void print_cframe(Obj **root) {
     }
 }
 
+#define HEAP_OF(obj) (obj->heap)
+#define POS_IN_HEAP(obj) (obj - HEAP_OF(obj)->ptr)
+
+#define MARK(obj)   (HEAP_OF(obj)->marks[POS_IN_HEAP(obj) >> 3] |= 1 << (POS_IN_HEAP(obj) & 7))
+#define MARKED(obj) (HEAP_OF(obj)->marks[POS_IN_HEAP(obj) >> 3] & (1 << (POS_IN_HEAP(obj) & 7)))
+
 void mark_obj(Obj *obj)
 {
-    if (obj && !obj->mark) {
+    if (obj && obj->type != TSPE && !MARKED(obj)) {
+    /*
         if (DEBUG_GC)
             printf("marking %p (type: %d)\n", obj, obj->type);
+            */
 
-        obj->mark = 1;
+        MARK(obj);
         switch (obj->type) {
         case TCELL:
             mark_obj(obj->car);
@@ -226,9 +250,10 @@ void mark_from_root(Env *env, Obj **root)
 
 void mark(Env *env, Obj **root)
 {
-    int i = 0;
-    for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
-        (memory + i)->mark = 0;
+    int i;
+    for (i = 0; i < memory.len; i++) {
+        ObjectHeap *heap = memory.heaps[i];
+        memset(heap->marks, 0, MEMORY_SIZE / sizeof(Obj) / 8);
     }
     mark_from_env(env, root);
     mark_from_root(env, root);
@@ -236,8 +261,10 @@ void mark(Env *env, Obj **root)
 
 void sweep_obj(Obj *obj)
 {
+/*
     if (DEBUG_GC)
         printf("sweeping %p (type: %d)\n", obj, obj->type);
+        */
 
     switch (obj->type) {
     case TSTRING:
@@ -247,6 +274,8 @@ void sweep_obj(Obj *obj)
         free(obj->name);
         break;
     }
+
+    obj->type = TFREE;
     obj->next = free_list;
     free_list = obj;
 }
@@ -254,11 +283,14 @@ void sweep_obj(Obj *obj)
 void sweep(Env *env, Obj **root)
 {
     free_list = NULL;
-    int i = 0;
-    for (; i < MEMORY_SIZE / OBJ_SIZE; i++) {
-        Obj *obj = memory + i;
-        if (!obj->mark) {
-            sweep_obj(obj);
+    int i;
+    for (i = 0; i < memory.len; i++) {
+        ObjectHeap* heap = memory.heaps[i];
+        int j;
+        for (j = 0; j < MEMORY_SIZE / sizeof(Obj); j++) {
+            if (!(heap->marks[j >> 3] & (1 << (j & 7)))) {
+                sweep_obj(&heap->ptr[j]);
+            }
         }
     }
 }
@@ -849,14 +881,33 @@ void define_primitives(Env *env, Obj **root) {
     add_primitive(env, root, "exit", prim_exit);
 }
 
-Obj *alloc_heap(size_t heap_size, size_t obj_size)
+Obj *alloc_heap(size_t size)
 {
-    Obj *heap = mmap(NULL, heap_size, PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    int i = 0;
-    for (; i < heap_size / obj_size - 1; i++) {
-        heap[i].next = &heap[i + 1];
+    if (memory.len >= memory.capa) {
+      return NULL;
     }
-    return heap;
+
+    ObjectHeap *heap = malloc(sizeof(ObjectHeap));
+    if (!heap) {
+        return NULL;
+    }
+
+    heap->ptr = malloc(size);
+    heap->marks = calloc(size / sizeof(Obj) / 8, sizeof(Octet));
+    if (!heap->ptr || !heap->marks) {
+        return NULL;
+    }
+
+    int i;
+    for (i = 0; i < size / sizeof(Obj) - 1; i++) {
+        heap->ptr[i].heap = heap;
+        heap->ptr[i].next = &heap->ptr[i + 1];
+    }
+    heap->ptr[size / sizeof(Obj) - 1].heap = heap;
+    heap->ptr[size / sizeof(Obj) - 1].next = NULL;
+
+    memory.heaps[memory.len++] = heap;
+    return heap->ptr;
 }
 
 int main(int argc, char **argv) {
@@ -865,9 +916,13 @@ int main(int argc, char **argv) {
     Obj **sexp = NEXT_VAR;
     Obj **expanded = NEXT_VAR;
 
-    printf("OBJ_SIZE: %d  MEMORY_SIZE: %d\n", OBJ_SIZE, MEMORY_SIZE);
+    printf("sizeof(Obj): %d  MEMORY_SIZE: %d\n", sizeof(Obj), MEMORY_SIZE);
 
-    memory = free_list = alloc_heap(MEMORY_SIZE, OBJ_SIZE);
+    memory.len = 0;
+    memory.capa = MAX_HEAPS_SIZE;
+    memory.heaps = malloc(sizeof(ObjectHeap*) * MAX_HEAPS_SIZE);
+
+    free_list = alloc_heap(MEMORY_SIZE);
 
     if (DEBUG_GC)
         printf("MEMORY: %p + %x\n", memory, MEMORY_SIZE);

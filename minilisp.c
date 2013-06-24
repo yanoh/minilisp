@@ -910,12 +910,48 @@ Obj *alloc_heap(size_t size)
     return heap->ptr;
 }
 
-int main(int argc, char **argv) {
-    Obj **root = NULL;
+static char buf[BUFSIZE * 100]; /* 100 lines of lisp code */
+
+void do_repl(Env *env, Obj **root)
+{
     ADD_ROOT(2);
     Obj **sexp = NEXT_VAR;
     Obj **expanded = NEXT_VAR;
 
+    for (;;) {
+        char *p = buf;
+        char *dummy = fgets(p, BUFSIZE, stdin);
+        *sexp = read(env, root, &p);
+        if (!*sexp) continue;
+        *expanded = macroexpand(env, root, sexp);
+        print(eval(env, root, expanded));
+        printf("\n");
+    }
+}
+
+void eval_file(Env *env, Obj **root, char *fname)
+{
+    FILE *fp = fopen(fname, "r");
+    if (!fp) error("no such file");
+
+    ADD_ROOT(2);
+    Obj **sexp = NEXT_VAR;
+    Obj **expanded = NEXT_VAR;
+
+    fread(buf, sizeof(buf), 1, fp);
+    fclose(fp);
+
+    char *p = buf;
+    while (*p) {
+        *sexp = read(env, root, &p);
+        if (!*sexp) error("cannot load lisp program");
+        *expanded = macroexpand(env, root, sexp);
+        eval(env, root, expanded);
+    }
+}
+
+int main(int argc, char **argv) {
+    Obj **root = NULL;
     printf("sizeof(Obj): %d  MEMORY_SIZE: %d\n", sizeof(Obj), MEMORY_SIZE);
 
     memory.len = 0;
@@ -939,15 +975,11 @@ int main(int argc, char **argv) {
     define_consts(env, root);
     define_primitives(env, root);
 
-    char buf[BUFSIZE];
-    for (;;) {
-        char *p = buf;
-        char *dummy = fgets(p, BUFSIZE, stdin);
-        *sexp = read(env, root, &p);
-        if (!*sexp) continue;
-        *expanded = macroexpand(env, root, sexp);
-        print(eval(env, root, expanded));
-        printf("\n");
+    if (argc < 2) {
+        do_repl(env, root);
+    }
+    else {
+        eval_file(env, root, argv[1]);
     }
     return 0;
 }

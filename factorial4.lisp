@@ -15,5 +15,5 @@
            (times (+ n (negate 1)) func)
            (func (+ n (negate 1)))))))
 
-(times 1000 (lambda (n) (println (list 'ANSWER (fact 5)))))
+(times 1000 (lambda (n) (println (list 'ANSWER n (fact 5)))))
 (exit)

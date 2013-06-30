@@ -58,16 +58,17 @@
           (append (cdr head) tail))
     tail))
 
-(defun qsort (lst)
+(defun complement (comp)
+  (lambda (lhs rhs) (not (comp lhs rhs))))
+
+(defun qsort (lst comp)
   (if lst
     (append
       (append
-        (qsort (select (car lst) (cdr lst)
-                       (lambda (lhs rhs) (lt lhs rhs))))
+        (qsort (select (car lst) (cdr lst) comp))
         (list (car lst)))
-      (qsort (select (car lst) (cdr lst)
-                     (lambda (lhs rhs) (ge lhs rhs)))))))
+      (qsort (select (car lst) (cdr lst) (complement comp))))))
 
 
-(println (qsort random-seq))
+(println (qsort random-seq lt))
 (exit)

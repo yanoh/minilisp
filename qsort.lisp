@@ -54,7 +54,8 @@
 
 (defun append (head tail)
   (if head
-    (cons (car head) (append (cdr head) tail))
+    (cons (car head)
+          (append (cdr head) tail))
     tail))
 
 (defun qsort (lst)

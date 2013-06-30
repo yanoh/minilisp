@@ -97,7 +97,7 @@ static Obj *True;
 static ObjectSpace memory;
 static Obj *free_list;
 static int gc_running = 0;
-#define DEBUG_GC 1
+#define DEBUG_GC 0
 
 void error(char *fmt, ...);
 Obj *read(Env *env, Obj *root, char **p);
@@ -677,6 +677,20 @@ Obj *prim_car(Env *env, Obj *root, Obj **list) {
     return args->car->car;
 }
 
+Obj *prim_cdr(Env *env, Obj *root, Obj **list)
+{
+    VAR(args);
+    *args = eval_list(env, root, list);
+    return (*args)->car->cdr;
+}
+
+Obj *prim_cons(Env *env, Obj *root, Obj **list)
+{
+    VAR(args);
+    *args = eval_list(env, root, list);
+    return make_cell(env, root, &(*args)->car, &(*args)->cdr->car);
+}
+
 Obj *prim_setq(Env *env, Obj *root, Obj **list) {
     if (list_length(*list) != 2 ||
         (*list)->car->type != TSYMBOL)
@@ -823,6 +837,17 @@ Obj *prim_num_eq(Env *env, Obj *root, Obj **list) {
     return (*values)->car->value == (*values)->cdr->car->value ? True : Nil;
 }
 
+Obj *prim_num_lt(Env *env, Obj *root, Obj **list)
+{
+    if (list_length(*list) != 2)
+        error("malformed <");
+    VAR(values);
+    *values = eval_list(env, root, list);
+    if ((*values)->car->type != TINT || (*values)->cdr->car->type != TINT)
+        error("< only takes number");
+    return (*values)->car->value < (*values)->cdr->car->value ? True : Nil;
+}
+
 Obj *prim_gc(Env *env, Obj *root, Obj **list) {
     gc(env, root);
     return Nil;
@@ -854,6 +879,8 @@ void define_primitives(Env *env, Obj *root) {
     add_primitive(env, root, "quote", prim_quote);
     add_primitive(env, root, "list", prim_list);
     add_primitive(env, root, "car", prim_car);
+    add_primitive(env, root, "cdr", prim_cdr);
+    add_primitive(env, root, "cons", prim_cons);
     add_primitive(env, root, "setq", prim_setq);
     add_primitive(env, root, "+", prim_plus);
     add_primitive(env, root, "negate", prim_negate);
@@ -864,6 +891,7 @@ void define_primitives(Env *env, Obj *root) {
     add_primitive(env, root, "lambda", prim_lambda);
     add_primitive(env, root, "if", prim_if);
     add_primitive(env, root, "=", prim_num_eq);
+    add_primitive(env, root, "prim-lt", prim_num_lt);
     add_primitive(env, root, "println", prim_println);
     add_primitive(env, root, "gc", prim_gc);
     add_primitive(env, root, "exit", prim_exit);

@@ -47,7 +47,7 @@
 
 (defun select (n lst comp)
   (if lst
-    (if (comp n (car lst))
+    (if (comp (car lst) n)
       (cons (car lst)
             (select n (cdr lst) comp))
       (select n (cdr lst) comp))))
@@ -63,10 +63,10 @@
     (append
       (append
         (qsort (select (car lst) (cdr lst)
-                       (lambda (lhs rhs) (gt lhs rhs))))
+                       (lambda (lhs rhs) (lt lhs rhs))))
         (list (car lst)))
       (qsort (select (car lst) (cdr lst)
-                     (lambda (lhs rhs) (le lhs rhs)))))))
+                     (lambda (lhs rhs) (ge lhs rhs)))))))
 
 
 (println (qsort random-seq))

@@ -69,5 +69,9 @@
                      (lambda (lhs rhs) (ge lhs rhs)))))))
 
 
-(println (qsort random-seq))
+(defun times (seq n)
+  (if (not (eq n 0))
+    (append seq (times seq (+ n (negate 1))))))
+
+(println (qsort (times random-seq 5)))
 (exit)

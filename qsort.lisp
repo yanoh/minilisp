@@ -45,16 +45,17 @@
 (defun ge (lhs rhs) (or (gt lhs rhs) (eq lhs rhs)))
 
 
+(defun select (n lst comp)
+  (if lst
+    (if (comp n (car lst))
+      (cons (car lst)
+            (select n (cdr lst) comp))
+      (select n (cdr lst) comp))))
+
 (defun append (head tail)
   (if head
     (cons (car head) (append (cdr head) tail))
     tail))
-
-(defun select (n lst comp)
-  (if lst
-    (append
-      (if (comp n (car lst)) (list (car lst)))
-      (select n (cdr lst) comp))))
 
 (defun qsort (lst)
   (if lst

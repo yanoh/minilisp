@@ -305,14 +305,12 @@ void sweep(Env *env, Obj *root)
 }
 
 void gc(Env *env, Obj *root) {
-    printf("gc start\n");
     if (gc_running)
         error("Bug: GC is already running");
     gc_running = 1;
     mark(env, root);
     sweep(env, root);
     gc_running = 0;
-    printf("gc end\n");
 }
 
 void error(char *fmt, ...) {

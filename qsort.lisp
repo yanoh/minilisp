@@ -20,8 +20,10 @@
 (defun ge (lhs rhs) (or (gt lhs rhs) (eq lhs rhs)))
 
 
-(defun append (lhs rhs)
-  (if lhs (cons (car lhs) (append (cdr lhs) rhs)) rhs))
+(defun append (head tail)
+  (if head
+    (cons (car head) (append (cdr head) tail))
+    tail))
 
 (defun select (n lst comp)
   (if lst

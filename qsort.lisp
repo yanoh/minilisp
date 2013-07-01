@@ -58,20 +58,20 @@
           (append (cdr head) tail))
     tail))
 
-(defun qsort (lst)
+(defun qsort (lst lessp)
   (if lst
     (append
       (append
-        (qsort (select (car lst) (cdr lst)
-                       (lambda (lhs rhs) (lt lhs rhs))))
+        (qsort (select (car lst) (cdr lst) lessp) lessp)
         (list (car lst)))
       (qsort (select (car lst) (cdr lst)
-                     (lambda (lhs rhs) (ge lhs rhs)))))))
+                     (lambda (lhs rhs) (not (lessp lhs rhs))))
+             lessp))))
 
 
 (defun times (seq n)
   (if (not (eq n 0))
     (append seq (times seq (+ n (negate 1))))))
 
-(println (qsort (times random-seq 5)))
+(println (qsort (times random-seq 3) lt))
 (exit)

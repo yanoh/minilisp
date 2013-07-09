@@ -6,6 +6,9 @@
 #include <ctype.h>
 #include <sys/mman.h>
 
+#include <readline/readline.h>
+#include <readline/history.h>
+
 enum {
     TFREE,
     TINT,
@@ -100,7 +103,7 @@ static int gc_running = 0;
 #define DEBUG_GC 0
 
 void error(char *fmt, ...);
-Obj *read(Env *env, Obj *root, char **p);
+Obj *ml_read(Env *env, Obj *root, char **p);
 Obj *read_one(Env *env, Obj *root, char **p);
 Obj *make_cell(Env *env, Obj *root, Obj **car, Obj **cdr);
 void gc(Env *env, Obj *root);
@@ -364,7 +367,7 @@ Obj *read_quote(Env *env, Obj *root, char **p) {
     VAR(sym);
     VAR(tmp);
     *sym = intern(env, root, "quote");
-    *tmp = read(env, root, p);
+    *tmp = ml_read(env, root, p);
     *tmp = make_cell(env, root, tmp, &Nil);
     *tmp = make_cell(env, root, sym, tmp);
     return *tmp;
@@ -417,11 +420,11 @@ Obj *read_one(Env *env, Obj *root, char **p) {
         (*p)++;
         return Dot;
     default:
-        return read(env, root, p);
+        return ml_read(env, root, p);
     }
 }
 
-Obj *read(Env *env, Obj *root, char **p) {
+Obj *ml_read(Env *env, Obj *root, char **p) {
     for (;;) {
         char c = **p;
         (*p)++;
@@ -924,17 +927,19 @@ Obj *alloc_heap(size_t size)
     return heap->ptr;
 }
 
-static char buf[BUFSIZE * 100]; /* 100 lines of lisp code */
-
 void do_repl(Env *env, Obj *root)
 {
     VAR(sexp);
     VAR(expanded);
 
     for (;;) {
-        char *p = buf;
-        char *dummy = fgets(p, BUFSIZE, stdin);
-        *sexp = read(env, root, &p);
+        char *line = readline("minilisp> ");
+        char *p = line;
+
+        if (!line) break;
+        *sexp = ml_read(env, root, &p);
+        add_history(line);
+        free(line);
         if (!*sexp) continue;
         *expanded = macroexpand(env, root, sexp);
         print(eval(env, root, expanded));
@@ -944,6 +949,8 @@ void do_repl(Env *env, Obj *root)
 
 void eval_file(Env *env, Obj *root, char *fname)
 {
+    static char buf[BUFSIZE * 100]; /* about 100 lines of lisp code */
+
     FILE *fp = fopen(fname, "r");
     if (!fp) error("no such file");
 
@@ -955,7 +962,7 @@ void eval_file(Env *env, Obj *root, char *fname)
 
     char *p = buf;
     while (*p) {
-        *sexp = read(env, root, &p);
+        *sexp = ml_read(env, root, &p);
         if (!*sexp) error("cannot load lisp program");
         *expanded = macroexpand(env, root, sexp);
         eval(env, root, expanded);

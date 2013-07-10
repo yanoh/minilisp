@@ -103,7 +103,7 @@ static int gc_running = 0;
 #define DEBUG_GC 0
 
 void error(char *fmt, ...);
-Obj *ml_read(Env *env, Obj *root, char **p);
+static Obj *read(Env *env, Obj *root, char **p);
 Obj *read_one(Env *env, Obj *root, char **p);
 Obj *make_cell(Env *env, Obj *root, Obj **car, Obj **cdr);
 void gc(Env *env, Obj *root);
@@ -367,7 +367,7 @@ Obj *read_quote(Env *env, Obj *root, char **p) {
     VAR(sym);
     VAR(tmp);
     *sym = intern(env, root, "quote");
-    *tmp = ml_read(env, root, p);
+    *tmp = read(env, root, p);
     *tmp = make_cell(env, root, tmp, &Nil);
     *tmp = make_cell(env, root, sym, tmp);
     return *tmp;
@@ -420,11 +420,11 @@ Obj *read_one(Env *env, Obj *root, char **p) {
         (*p)++;
         return Dot;
     default:
-        return ml_read(env, root, p);
+        return read(env, root, p);
     }
 }
 
-Obj *ml_read(Env *env, Obj *root, char **p) {
+static Obj *read(Env *env, Obj *root, char **p) {
     for (;;) {
         char c = **p;
         (*p)++;
@@ -937,7 +937,7 @@ void do_repl(Env *env, Obj *root)
         char *p = line;
 
         if (!line) break;
-        *sexp = ml_read(env, root, &p);
+        *sexp = read(env, root, &p);
         add_history(line);
         free(line);
         if (!*sexp) continue;
@@ -962,7 +962,7 @@ void eval_file(Env *env, Obj *root, char *fname)
 
     char *p = buf;
     while (*p) {
-        *sexp = ml_read(env, root, &p);
+        *sexp = read(env, root, &p);
         if (!*sexp) error("cannot load lisp program");
         *expanded = macroexpand(env, root, sexp);
         eval(env, root, expanded);

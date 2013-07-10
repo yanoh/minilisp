@@ -58,12 +58,15 @@
           (append (cdr head) tail))
     tail))
 
+(defun append3 (head middle tail)
+  (append (append head middle)
+          tail))
+
 (defun qsort (lst lessp)
   (if lst
-    (append
-      (append
-        (qsort (select (car lst) (cdr lst) lessp) lessp)
-        (list (car lst)))
+    (append3
+      (qsort (select (car lst) (cdr lst) lessp) lessp)
+      (list (car lst))
       (qsort (select (car lst) (cdr lst)
                      (lambda (lhs rhs) (not (lessp lhs rhs))))
              lessp))))

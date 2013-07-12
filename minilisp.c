@@ -645,9 +645,14 @@ Obj *eval(Env *env, Obj *root, Obj **obj) {
         *car = (*obj)->car;
         *args = (*obj)->cdr;
         *fn = eval(env, root, car);
-        if ((*fn)->type != TPRIMITIVE && (*fn)->type != TFUNCTION)
+	if ((*fn)->type == TMACRO) {
+	    VAR(macro);
+	    *macro = macroexpand(env, root, obj);
+	    return eval(env, root, macro);
+	}else if ((*fn)->type != TPRIMITIVE && (*fn)->type != TFUNCTION){
             error("Car must be a function");
-        return apply(env, root, fn, args);
+	}else
+	    return apply(env, root, fn, args);
     }
     if ((*obj)->type == TSYMBOL) {
         Obj *val = find((*obj)->name, env);

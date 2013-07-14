@@ -51,15 +51,12 @@
 (defun last (lst)
   (nthcar (+ (length lst) (negate 1)) lst))
 
-(defmacro eval (lst)
-  (list 'if 't lst))
-
 (defmacro progn (lst)
   (if (eq 1 (length lst))
-    (eval (car lst))
+    (car lst)
     (list 'last
           (list 'list
-                (eval (car lst))
+                (car lst)
                 (list 'progn (cdr lst))))))
 
 (defmacro when (x lst)

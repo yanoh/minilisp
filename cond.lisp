@@ -59,12 +59,28 @@
                 (car lst)
                 (list 'progn (cdr lst))))))
 
+(println 'progn-macro-test-1)
+(progn ((println 'hello)
+        (println 'world)))
+
+(println 'progn-macro-test-2)
+(println (progn ((println 'hello)
+                 (println 'world)
+                 (+ 1 1))))
+
 (defmacro when (x lst)
   (list 'if x (list 'progn lst)))
 
+(println 'when-macro-test-1)
+(when (eq 1 1)
+  ((println 'hello)
+   (println 'world)))
 
-(println 'when-macro-test)
-(when (eq 1 1) ((println 'hello) (println 'world)))
+(println 'when-macro-test-2)
+(println (when (eq 1 1)
+           ((println 'hello)
+            (println 'world)
+            (eq 1 1))))
 
 (defmacro cond (lst)
   (list 'if
@@ -74,7 +90,7 @@
               (gt (length lst) 2)
               (list 'cond (cdr (cdr lst))))))
 
-(println 'cond-macro-test)
+(println 'cond-macro-test-1)
 (cond ((= 1 0)
         ((println 'case-1)
          (println 'hello)
@@ -87,5 +103,22 @@
         ((println 'default)
          (println 'hello)
          (println 'world))))
+
+(println 'cond-macro-test-2)
+(println (cond ((= 1 0)
+                ((println 'case-1)
+                 (println 'hello)
+                 (println 'world)
+                 1)
+                (= 1 1)
+                ((println 'case-2)
+                 (println 'hello)
+                 (println 'world)
+                 (+ 1 1))
+                t
+                ((println 'default)
+                 (println 'hello)
+                 (println 'world)
+                 (+ 2 2)))))
 
 (exit)

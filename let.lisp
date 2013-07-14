@@ -30,11 +30,15 @@
 
 (defun define-all (vars)
   (if vars
-    (cons (list 'define (car (car vars)) (car (cdr (car vars))))
-            (define-all (cdr vars)))))
+    (cons (list 'define
+                (car (car vars))
+                (car (cdr (car vars))))
+          (define-all (cdr vars)))))
 
 (defmacro let (vars exprs)
-  (list 'progn (append (define-all vars) exprs)))
+  (list 'progn
+        (append (define-all vars)
+                exprs)))
 
 (defun foo (n)
   (let ((x (+ 1 n))
@@ -48,7 +52,7 @@
 (println (foo 5))
 (exit)
 
-(println '(unable to let over lambda because of missing env copying))
+(println '(unable to let-over-lambda because of missing env copying))
 
 (defun plus (n)
   (let ((lhs n))

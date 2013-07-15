@@ -14,11 +14,11 @@
     lst
     (nthcdr (+ n (negate 1)) (cdr lst))))
 
-(defun nthcar (n lst)
+(defun nth (n lst)
   (car (nthcdr n lst)))
 
 (defun last (lst)
-  (nthcar (+ (length lst) (negate 1)) lst))
+  (nth (+ (length lst) (negate 1)) lst))
 
 (defmacro progn (lst)
   (if (= 1 (length lst))
@@ -28,11 +28,17 @@
                 (car lst)
                 (list 'progn (cdr lst))))))
 
+(defun caar (lst)
+  (car (car lst)))
+
+(defun cadar (lst)
+  (car (cdr (car lst))))
+
 (defun define-all (vars)
   (if vars
     (cons (list 'define
-                (car (car vars))
-                (car (cdr (car vars))))
+                (caar vars)
+                (cadar vars))
           (define-all (cdr vars)))))
 
 (defmacro let (vars exprs)

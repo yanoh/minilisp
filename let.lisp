@@ -56,6 +56,20 @@
      (+ x y))))
 
 (println (foo 5))
+
+(defun bar (n)
+  (let ((x (+ 1 n))
+        (y (+ 2 n)))
+    ((let ((z (+ 3 n)))
+       ((println 'bar)
+        (println (list 'n n))
+        (println (list 'x x))
+        (println (list 'y y))
+        (println (list 'z z))
+        (+ (+ n x) (+ y z)))))))
+
+(println (bar 5))
+
 (exit)
 
 (println '(unable to let-over-lambda because of missing env copying))

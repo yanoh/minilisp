@@ -1,18 +1,11 @@
 (defun not (x)
-  (if x
-    ()
-    t))
+  (if x () t))
 
 (defun and (lhs rhs)
-  (if lhs
-    (if rhs
-      t)))
+  (if lhs (if rhs t)))
 
 (defun or (lhs rhs)
-  (if lhs
-    t
-    (if rhs
-      t)))
+  (if lhs t (if rhs t)))
 
 (defun lt (lhs rhs)
   (prim-lt lhs rhs))
@@ -45,11 +38,11 @@
     lst
     (nthcdr (+ n (negate 1)) (cdr lst))))
 
-(defun nthcar (n lst)
+(defun nth (n lst)
   (car (nthcdr n lst)))
 
 (defun last (lst)
-  (nthcar (+ (length lst) (negate 1)) lst))
+  (nth (+ (length lst) (negate 1)) lst))
 
 (defmacro progn (lst)
   (if (eq 1 (length lst))
@@ -82,43 +75,58 @@
             (println 'world)
             (eq 1 1))))
 
+(defun cadr (lst)
+  (car (cdr lst)))
+
+(defun cddr (lst)
+  (cdr (cdr lst)))
+
 (defmacro cond (lst)
   (list 'if
         (list 'and (car lst) (ge (length lst) 2))
-        (list 'progn (car (cdr lst)))
+        (list 'progn (cadr lst))
         (list 'if
               (gt (length lst) 2)
-              (list 'cond (cdr (cdr lst))))))
+              (list 'cond (cddr lst)))))
 
 (println 'cond-macro-test-1)
-(cond ((= 1 0)
-        ((println 'case-1)
-         (println 'hello)
-         (println 'world))
-       (= 1 1)
-        ((println 'case-2)
-         (println 'hello)
-         (println 'world))
+(cond ((eq 1 0)
+       ((println 'case-1)
+        (println 'hello)
+        (println 'world))
+       (and (eq 2 (+ 1 1)) (gt (+ 1 1) 0))
+       ((println 'case-2)
+        (println 'hello)
+        (println 'world))
+       (eq 1 1)
+       ((println 'case-3)
+        (println 'hello)
+        (println 'world))
        t
-        ((println 'default)
-         (println 'hello)
-         (println 'world))))
+       ((println 'default)
+        (println 'hello)
+        (println 'world))))
 
 (println 'cond-macro-test-2)
-(println (cond ((= 1 0)
+(println (cond ((eq 1 0)
                 ((println 'case-1)
                  (println 'hello)
                  (println 'world)
                  1)
-                (= 1 1)
+                (and (eq 2 (+ 1 1)) (gt (+ 1 1) 0))
                 ((println 'case-2)
                  (println 'hello)
                  (println 'world)
-                 (+ 1 1))
+                 (+ 1 2))
+                (eq 1 1)
+                ((println 'case-3)
+                 (println 'hello)
+                 (println 'world)
+                 (+ 1 3))
                 t
                 ((println 'default)
                  (println 'hello)
                  (println 'world)
-                 (+ 2 2)))))
+                 (+ 1 4)))))
 
 (exit)

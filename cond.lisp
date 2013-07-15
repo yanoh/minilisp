@@ -1,18 +1,11 @@
 (defun not (x)
-  (if x
-    ()
-    t))
+  (if x () t))
 
 (defun and (lhs rhs)
-  (if lhs
-    (if rhs
-      t)))
+  (if lhs (if rhs t)))
 
 (defun or (lhs rhs)
-  (if lhs
-    t
-    (if rhs
-      t)))
+  (if lhs t (if rhs t)))
 
 (defun lt (lhs rhs)
   (prim-lt lhs rhs))
@@ -45,11 +38,11 @@
     lst
     (nthcdr (+ n (negate 1)) (cdr lst))))
 
-(defun nthcar (n lst)
+(defun nth (n lst)
   (car (nthcdr n lst)))
 
 (defun last (lst)
-  (nthcar (+ (length lst) (negate 1)) lst))
+  (nth (+ (length lst) (negate 1)) lst))
 
 (defmacro progn (lst)
   (if (eq 1 (length lst))
@@ -82,13 +75,19 @@
             (println 'world)
             (eq 1 1))))
 
+(defun cadr (lst)
+  (car (cdr lst)))
+
+(defun cddr (lst)
+  (cdr (cdr lst)))
+
 (defmacro cond (lst)
   (list 'if
         (list 'and (car lst) (ge (length lst) 2))
-        (list 'progn (car (cdr lst)))
+        (list 'progn (cadr lst))
         (list 'if
               (gt (length lst) 2)
-              (list 'cond (cdr (cdr lst))))))
+              (list 'cond (cddr lst)))))
 
 (println 'cond-macro-test-1)
 (cond ((= 1 0)

@@ -4,9 +4,8 @@
     (car lst)))
 
 (defmacro eval-list (lst)
-  (if (cdr lst)
-    (list 'cons (car lst) (list 'eval-list (cdr lst)))
-    (list 'list (car lst))))
+  (if lst
+    (list 'cons (car lst) (list 'eval-list (cdr lst)))))
 
 (defmacro progn (lst)
   (list 'last (list 'eval-list lst)))

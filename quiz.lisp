@@ -4,9 +4,8 @@
     (car lst)))
 
 (defmacro eval-list (lst)
-  (if (cdr lst)
-    (list 'cons (car lst) (list 'eval-list (cdr lst)))
-    (list 'list (car lst))))
+  (if lst
+    (list 'cons (car lst) (list 'eval-list (cdr lst)))))
 
 (defmacro progn (lst)
   (list 'last (list 'eval-list lst)))
@@ -35,34 +34,34 @@
         (append (define-all vars)
                 exprs)))
 
-(defun mapc (func lst)
-  (if (cdr lst)
-    (progn ((func (car lst))
-            (mapc func (cdr lst))
-            lst))
-    (progn ((func (car lst))
-            lst))))
-
-(defun mapcar (func lst)
+(defun mapcar (fn lst)
   (if lst
-    (cons (func (car lst)) (mapcar func (cdr lst)))))
+    (cons (fn (car lst)) (mapcar fn (cdr lst)))))
 
-(defun select (func lst)
-  (if (cdr lst)
-    (if (func (car lst))
-      (cons (car lst) (select func (cdr lst)))
-      (select func (cdr lst)))
-    (if (func (car lst))
-      (cons (car lst) ())
-      ())))
+(defun select (fn lst)
+  (if lst
+    (if (fn (car lst))
+      (cons (car lst) (select fn (cdr lst)))
+      (select fn (cdr lst)))))
 
 (defun not (x)
   (if x () t))
 
+(defun and (lhs rhs)
+  (if lhs (if rhs t)))
+
+(defun or (lhs rhs)
+  (if lhs t (if rhs t)))
+
+(defun member (n lst)
+  (if lst
+    (or (= n (car lst))
+        (member n (cdr lst)))))
+
 (defun sum (lst)
-  (if (cdr lst)
+  (if lst
     (+ (car lst) (sum (cdr lst)))
-    (car lst)))
+    0))
 
 (defun kondo1 (lst)
   (mapcar (lambda (n)
@@ -72,6 +71,7 @@
 (defun kondo2 (lst)
   (let ((s (sum seq)))
     ((mapcar (lambda (n) (+ s (negate n))) seq))))
+
 
 (define seq '(1 5 8 2 4))
 

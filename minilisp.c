@@ -39,7 +39,11 @@ typedef struct Obj *Primitive(Env *env, struct Obj *root, struct Obj **args);
 typedef struct Obj {
     int type;
     /* TODO: Remove this padding after merging keisen's type erasure. */
-    int padding;
+    int padding1;
+#if __LP64__
+    int padding2;
+    int padding3;
+#endif
     union {
         struct Obj *next;
         // Int
@@ -206,7 +210,7 @@ void print_cframe(Obj *root) {
 }
 */
 
-#define bitsizeof(type)    (sizeof(type) * 8)
+#define bitsizeof(type)     (sizeof(type) * 8)
 
 #define BITMAP_CELL_OF(obj) ((Obj *) ((unsigned long) obj & ~(HEAP_SIZE - 1)))
 #define BITMAP_OF(obj)      (BITMAP_CELL_OF(obj)->bmap)

@@ -36,11 +36,10 @@ typedef struct Env {
 
 typedef struct Obj *Primitive(Env *env, struct Obj *root, struct Obj **args);
 
-struct ObjectHeap;
-
 typedef struct Obj {
     int type;
-    struct ObjectHeap *heap;
+    /* TODO: Remove this padding after merging keisen's type erasure. */
+    int padding;
     union {
         struct Obj *next;
         // Int
@@ -73,20 +72,18 @@ typedef struct Obj {
         struct {
             int spetype;
         };
+        // Bitmap
+        struct {
+            int *bmap;
+            struct Obj *heap;
+        };
     };
 } Obj;
-
-typedef unsigned char Octet;
-
-typedef struct ObjectHeap {
-    Octet *marks;
-    Obj *ptr;
-} ObjectHeap;
 
 typedef struct ObjectSpace {
   int len;
   int capa;
-  ObjectHeap **heaps;
+  Obj **heaps;
 } ObjectSpace;
 
 static Obj *Nil;
@@ -94,8 +91,11 @@ static Obj *Dot;
 static Obj *Cparen;
 static Obj *True;
 
-#define MEMORY_SIZE 1024
+#define HEAP_SIZE 4096
 #define MAX_HEAPS_SIZE 1024
+
+#define OBJECTS_PER_HEAP (HEAP_SIZE / sizeof(Obj))
+#define BITMAP_SIZE (sizeof(int) * (OBJECTS_PER_HEAP / (sizeof(int) * 8)))
 
 static ObjectSpace memory;
 static Obj *free_list;
@@ -108,7 +108,7 @@ Obj *read_one(Env *env, Obj *root, char **p);
 Obj *make_cell(Env *env, Obj *root, Obj **car, Obj **cdr);
 void gc(Env *env, Obj *root);
 void print(Obj *obj);
-Obj *alloc_heap(size_t size);
+Obj *alloc_heap(void);
 
 #define CELL(X) X ## _cell
 
@@ -124,8 +124,8 @@ Obj *alloc_heap(size_t size);
 Obj *alloc(Env *env, Obj *root, int type) {
     if (!free_list) gc(env, root);
     if (!free_list) {
-      printf("FreeList is empty.\n");
-      free_list = alloc_heap(MEMORY_SIZE);
+      /*printf("FreeList is empty.\n");*/
+      free_list = alloc_heap();
       if (!free_list) error("memory exhausted");
     }
 
@@ -206,11 +206,18 @@ void print_cframe(Obj *root) {
 }
 */
 
-#define HEAP_OF(obj) (obj->heap)
-#define POS_IN_HEAP(obj) (obj - HEAP_OF(obj)->ptr)
+#define bitsizeof(type)    (sizeof(type) * 8)
 
-#define MARK(obj)   (HEAP_OF(obj)->marks[POS_IN_HEAP(obj) >> 3] |= 1 << (POS_IN_HEAP(obj) & 7))
-#define MARKED(obj) (HEAP_OF(obj)->marks[POS_IN_HEAP(obj) >> 3] & (1 << (POS_IN_HEAP(obj) & 7)))
+#define BITMAP_CELL_OF(obj) ((Obj *) ((unsigned long) obj & ~(HEAP_SIZE - 1)))
+#define BITMAP_OF(obj)      (BITMAP_CELL_OF(obj)->bmap)
+#define HEAP_OF(obj)        (BITMAP_CELL_OF(obj)->heap)
+
+#define OBJECT_INDEX(obj)   (obj - HEAP_OF(obj))
+#define BITMAP_INDEX(obj)   (OBJECT_INDEX(obj) / bitsizeof(int))
+#define BITMAP_OFFSET(obj)  (OBJECT_INDEX(obj) % bitsizeof(int))
+
+#define MARK(obj)   (BITMAP_OF(obj)[BITMAP_INDEX(obj)] |= 1 << BITMAP_OFFSET(obj))
+#define MARKED(obj) (BITMAP_OF(obj)[BITMAP_INDEX(obj)] & (1 << BITMAP_OFFSET(obj)))
 
 void mark_obj(Obj *obj)
 {
@@ -264,8 +271,8 @@ void mark(Env *env, Obj *root)
 {
     int i;
     for (i = 0; i < memory.len; i++) {
-        ObjectHeap *heap = memory.heaps[i];
-        memset(heap->marks, 0, MEMORY_SIZE / sizeof(Obj) / 8);
+        Obj *heap = memory.heaps[i];
+        memset(BITMAP_OF(heap), 0, BITMAP_SIZE);
     }
     mark_from_env(env, root);
     mark_from_root(env, root);
@@ -297,11 +304,11 @@ void sweep(Env *env, Obj *root)
     free_list = NULL;
     int i;
     for (i = 0; i < memory.len; i++) {
-        ObjectHeap* heap = memory.heaps[i];
+        Obj *heap = memory.heaps[i];
         int j;
-        for (j = 0; j < MEMORY_SIZE / sizeof(Obj); j++) {
-            if (!(heap->marks[j >> 3] & (1 << (j & 7)))) {
-                sweep_obj(&heap->ptr[j]);
+        for (j = 0; j < OBJECTS_PER_HEAP; j++) {
+            if (&heap[j] != BITMAP_CELL_OF(heap) && !MARKED(&heap[j])) {
+                sweep_obj(&heap[j]);
             }
         }
     }
@@ -322,7 +329,7 @@ void error(char *fmt, ...) {
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     va_end(ap);
-    exit(1);
+    abort();
 }
 
 Obj *read_sexp(Env *env, Obj *root, char **p) {
@@ -645,14 +652,14 @@ Obj *eval(Env *env, Obj *root, Obj **obj) {
         *car = (*obj)->car;
         *args = (*obj)->cdr;
         *fn = eval(env, root, car);
-	if ((*fn)->type == TMACRO) {
-	    VAR(macro);
-	    *macro = macroexpand(env, root, obj);
-	    return eval(env, root, macro);
-	}else if ((*fn)->type != TPRIMITIVE && (*fn)->type != TFUNCTION){
+        if ((*fn)->type == TMACRO) {
+            VAR(macro);
+            *macro = macroexpand(env, root, obj);
+            return eval(env, root, macro);
+        }else if ((*fn)->type != TPRIMITIVE && (*fn)->type != TFUNCTION){
             error("Car must be a function");
-	}else
-	    return apply(env, root, fn, args);
+        }else
+            return apply(env, root, fn, args);
     }
     if ((*obj)->type == TSYMBOL) {
         Obj *val = find((*obj)->name, env);
@@ -664,7 +671,7 @@ Obj *eval(Env *env, Obj *root, Obj **obj) {
     return NULL;
 }
 
-#define BUFSIZE 250
+#define BUFSIZE 1024
 
 Obj *prim_quote(Env *env, Obj *root, Obj **list) {
     if (list_length(*list) != 1)
@@ -903,33 +910,42 @@ void define_primitives(Env *env, Obj *root) {
     add_primitive(env, root, "exit", prim_exit);
 }
 
-Obj *alloc_heap(size_t size)
+Obj *alloc_heap(void)
 {
     if (memory.len >= memory.capa) {
       return NULL;
     }
 
-    ObjectHeap *heap = malloc(sizeof(ObjectHeap));
-    if (!heap) {
+    Obj *heap;
+    /*
+     * TODO: Replace posix_memalign(3) with portable mem-aligned allocation
+     *       based on malloc(3).
+     */
+    if (posix_memalign((void **) &heap, HEAP_SIZE, HEAP_SIZE) < 0) {
         return NULL;
     }
-
-    heap->ptr = malloc(size);
-    heap->marks = calloc(size / sizeof(Obj) / 8, sizeof(Octet));
-    if (!heap->ptr || !heap->marks) {
-        return NULL;
-    }
-
-    int i;
-    for (i = 0; i < size / sizeof(Obj) - 1; i++) {
-        heap->ptr[i].heap = heap;
-        heap->ptr[i].next = &heap->ptr[i + 1];
-    }
-    heap->ptr[size / sizeof(Obj) - 1].heap = heap;
-    heap->ptr[size / sizeof(Obj) - 1].next = NULL;
-
     memory.heaps[memory.len++] = heap;
-    return heap->ptr;
+
+    int *bmap = malloc(BITMAP_SIZE);
+    if (!bmap) {
+        free(heap);
+        return NULL;
+    }
+    BITMAP_OF(heap) = bmap;
+    HEAP_OF(heap) = heap;
+
+    Obj *curr_cell, *prev_cell, *bmap_cell = BITMAP_CELL_OF(heap);
+    for (curr_cell = heap, prev_cell = NULL;
+            curr_cell < &heap[OBJECTS_PER_HEAP]; curr_cell++) {
+        if (curr_cell != bmap_cell) {
+            curr_cell->next = NULL;
+            if (prev_cell) {
+                prev_cell->next = curr_cell;
+            }
+            prev_cell = curr_cell;
+        }
+    }
+    return heap == bmap_cell ? heap + 1 : heap;
 }
 
 void do_repl(Env *env, Obj *root)
@@ -976,16 +992,16 @@ void eval_file(Env *env, Obj *root, char *fname)
 
 int main(int argc, char **argv) {
     Obj *root = NULL;
-    printf("sizeof(Obj): %d  MEMORY_SIZE: %d\n", sizeof(Obj), MEMORY_SIZE);
+    printf("sizeof(Obj): %d  MEMORY_SIZE: %d\n", sizeof(Obj), HEAP_SIZE);
 
     memory.len = 0;
     memory.capa = MAX_HEAPS_SIZE;
-    memory.heaps = malloc(sizeof(ObjectHeap*) * MAX_HEAPS_SIZE);
+    memory.heaps = malloc(sizeof(Obj*) * MAX_HEAPS_SIZE);
 
-    free_list = alloc_heap(MEMORY_SIZE);
+    free_list = alloc_heap();
 
     if (DEBUG_GC)
-        printf("MEMORY: %p + %x\n", memory, MEMORY_SIZE);
+        printf("MEMORY: %p + %x\n", memory, HEAP_SIZE);
 
     Nil = make_spe(TNIL);
     Dot = make_spe(TDOT);

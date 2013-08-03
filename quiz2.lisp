@@ -70,17 +70,18 @@
                 exprs)))
 
 
-(defun select (n lst comp)
-  (if lst
-    (if (comp (car lst) n)
-      (cons (car lst)
-            (select n (cdr lst) comp))
-      (select n (cdr lst) comp))))
+(defun remove-if-not (pred seq)
+  (if seq
+    (if (pred (car seq))
+      (cons (car seq)
+            (remove-if-not pred (cdr seq)))
+      (remove-if-not pred (cdr seq)))))
 
 (defun kondo3 (lst)
   (let ((lt-lst
-          (select (car lst) (cdr lst)
-                  (lambda (lhs rhs) (lt lhs rhs)))))
+          (remove-if-not
+            (lambda (n) (lt n (car lst)))
+            (cdr lst))))
     ((if lt-lst
        (if (cdr lt-lst)
          (kondo3 lt-lst)
@@ -89,8 +90,9 @@
 
 (defun kondo4 (lst)
   (let ((gt-lst
-          (select (car lst) (cdr lst)
-                  (lambda (lhs rhs) (gt lhs rhs)))))
+          (remove-if-not
+            (lambda (n) (gt n (car lst)))
+            (cdr lst))))
     ((if gt-lst
        (if (cdr gt-lst)
          (kondo4 gt-lst)
@@ -105,8 +107,8 @@
   (if (gt n 0)
     (append seq (times seq (+ n (negate 1))))))
 
-(println (kondo3 (times random-seq 3)))
-(println (kondo4 (times random-seq 3)))
-(println (kondo5 (times random-seq 3)))
+(println (kondo3 (times random-seq 5)))
+(println (kondo4 (times random-seq 5)))
+(println (kondo5 (times random-seq 5)))
 
 (exit)

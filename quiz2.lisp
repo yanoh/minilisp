@@ -1,4 +1,78 @@
-(define random-seq
+(defun lt (lhs rhs) (prim-lt lhs rhs))
+(defun gt (lhs rhs) (lt rhs lhs))
+
+(defun append (head tail)
+  (if head
+    (cons (car head)
+          (append (cdr head) tail))
+    tail))
+
+(defun last (lst)
+  (if (cdr lst)
+    (last (cdr lst))
+    (car lst)))
+
+(defmacro eval-list (lst)
+  (if lst
+    (list 'cons (car lst) (list 'eval-list (cdr lst)))))
+
+(defmacro progn (lst)
+  (list 'last (list 'eval-list lst)))
+
+(defun caar (lst)
+  (car (car lst)))
+
+(defun cadr (lst)
+  (car (cdr lst)))
+
+(defun cddr (lst)
+  (cdr (cdr lst)))
+
+(defun cadar (lst)
+  (car (cdr (car lst))))
+
+(defun define-all (vars)
+  (if vars
+    (cons (list 'define
+                (caar vars)
+                (cadar vars))
+          (define-all (cdr vars)))))
+
+(defmacro let (vars exprs)
+  (list 'progn
+        (append (define-all vars)
+                exprs)))
+
+
+(defun order (a b)
+  (if (lt a b)
+    (list a b)
+    (list b a)))
+
+(defun min (lst)
+  (if (cdr lst)
+    (car (order (car lst) (min (cdr lst))))
+    (car lst)))
+
+(defun max (lst)
+  (if (cdr lst)
+    (cadr (order (car lst) (max (cdr lst))))
+    (car lst)))
+
+(defun minmax (lst)
+  (if (cdr lst)
+    (let ((c (order (car lst) (cadr lst)))
+          (r (if (cddr lst) (minmax (cddr lst)) c)))
+      ((list (car (order (car c) (car r)))
+             (cadr (order (cadr c) (cadr r))))))
+    (list (car lst) (car lst))))
+
+(defun kondo3 (lst) (min lst))
+(defun kondo4 (lst) (max lst))
+(defun kondo5 (lst) (minmax lst))
+
+
+(define large-seq
   '(121 202 257 220 216 285  88 233 107 141
     102 244  13 115  99 116 112  53 198  52
     279  37 123 240   1  20 289  15   5  14
@@ -30,85 +104,26 @@
     163 292 136 154  30  47  76  90  43 174
      95 108 173 110 278 192 217 265 160 147))
 
-(defun lt (lhs rhs) (prim-lt lhs rhs))
-(defun gt (lhs rhs) (lt rhs lhs))
-
-(defun append (head tail)
-  (if head
-    (cons (car head)
-          (append (cdr head) tail))
-    tail))
-
-(defun last (lst)
-  (if (cdr lst)
-    (last (cdr lst))
-    (car lst)))
-
-(defmacro eval-list (lst)
-  (if lst
-    (list 'cons (car lst) (list 'eval-list (cdr lst)))))
-
-(defmacro progn (lst)
-  (list 'last (list 'eval-list lst)))
-
-(defun caar (lst)
-  (car (car lst)))
-
-(defun cadar (lst)
-  (car (cdr (car lst))))
-
-(defun define-all (vars)
-  (if vars
-    (cons (list 'define
-                (caar vars)
-                (cadar vars))
-          (define-all (cdr vars)))))
-
-(defmacro let (vars exprs)
-  (list 'progn
-        (append (define-all vars)
-                exprs)))
-
-
-(defun remove-if-not (pred seq)
-  (if seq
-    (if (pred (car seq))
-      (cons (car seq)
-            (remove-if-not pred (cdr seq)))
-      (remove-if-not pred (cdr seq)))))
-
-(defun kondo3 (lst)
-  (let ((lt-lst
-          (remove-if-not
-            (lambda (n) (lt n (car lst)))
-            (cdr lst))))
-    ((if lt-lst
-       (if (cdr lt-lst)
-         (kondo3 lt-lst)
-         (car lt-lst))
-       (car lst)))))
-
-(defun kondo4 (lst)
-  (let ((gt-lst
-          (remove-if-not
-            (lambda (n) (gt n (car lst)))
-            (cdr lst))))
-    ((if gt-lst
-       (if (cdr gt-lst)
-         (kondo4 gt-lst)
-         (car gt-lst))
-       (car lst)))))
-
-(defun kondo5 (lst)
-  (cons (kondo3 lst) (kondo4 lst)))
-
-
 (defun times (seq n)
   (if (gt n 0)
     (append seq (times seq (+ n (negate 1))))))
 
-(println (kondo3 (times random-seq 5)))
-(println (kondo4 (times random-seq 5)))
-(println (kondo5 (times random-seq 5)))
+(define huge-seq (times large-seq 3))
+
+(println (list 'kondo3-tiny (kondo3 '(3 5 2 1 4))))
+(println (list 'kondo4-tiny (kondo4 '(3 5 2 1 4))))
+(println (list 'kondo5-tiny (kondo5 '(3 5 2 1 4))))
+
+(println (list 'kondo3-small (kondo3 '(3 5 2 1 4 6))))
+(println (list 'kondo4-small (kondo4 '(3 5 2 1 4 6))))
+(println (list 'kondo5-small (kondo5 '(3 5 2 1 4 6))))
+
+(println (list 'kondo3-large (kondo3 large-seq)))
+(println (list 'kondo4-large (kondo4 large-seq)))
+(println (list 'kondo5-large (kondo5 large-seq)))
+
+(println (list 'kondo3-huge (kondo3 huge-seq)))
+(println (list 'kondo4-huge (kondo4 huge-seq)))
+(println (list 'kondo5-huge (kondo5 huge-seq)))
 
 (exit)

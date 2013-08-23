@@ -46,26 +46,29 @@
 
 (defun order (a b)
   (if (lt a b)
-    (list a b)
-    (list b a)))
+    (cons a b)
+    (cons b a)))
 
 (defun min (lst)
-  (if (cdr lst)
-    (car (order (car lst) (min (cdr lst))))
-    (car lst)))
+  (if lst
+    (if (cdr lst)
+      (car (order (car lst) (min (cdr lst))))
+      (car lst))))
 
 (defun max (lst)
-  (if (cdr lst)
-    (cadr (order (car lst) (max (cdr lst))))
-    (car lst)))
+  (if lst
+    (if (cdr lst)
+      (cdr (order (car lst) (max (cdr lst))))
+      (car lst))))
 
 (defun minmax (lst)
-  (if (cdr lst)
-    (let ((c (order (car lst) (cadr lst)))
-          (r (if (cddr lst) (minmax (cddr lst)) c)))
-      ((list (car (order (car c) (car r)))
-             (cadr (order (cadr c) (cadr r))))))
-    (list (car lst) (car lst))))
+  (if lst
+    (if (cdr lst)
+      (let ((c (order (car lst) (cadr lst)))
+            (r (if (cddr lst) (minmax (cddr lst)) c)))
+        ((cons (car (order (car c) (car r)))
+               (cdr (order (cdr c) (cdr r))))))
+      (cons (car lst) (car lst)))))
 
 (defun kondo3 (lst) (min lst))
 (defun kondo4 (lst) (max lst))
@@ -109,6 +112,10 @@
     (append seq (times seq (+ n (negate 1))))))
 
 (define huge-seq (times large-seq 3))
+
+(println (list 'kondo3-empty (kondo3 ())))
+(println (list 'kondo4-empty (kondo4 ())))
+(println (list 'kondo5-empty (kondo5 ())))
 
 (println (list 'kondo3-tiny (kondo3 '(3 5 2 1 4))))
 (println (list 'kondo4-tiny (kondo4 '(3 5 2 1 4))))
